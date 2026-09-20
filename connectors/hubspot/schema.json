@@ -1,0 +1,47 @@
+{
+  "connector": "hubspot",
+  "description": "CRM contacts, deals, companies, and meetings data",
+  "api_connector": "connectors/hubspot/",
+  "objects": {
+    "contacts": {
+      "description": "Contact records (people)",
+      "data_location": "data/hubspot_contacts/hubspot-contacts.sqlite",
+      "sync_script": "connectors/hubspot/sync-contacts.js"
+    },
+    "companies": {
+      "description": "Company records (organizations)",
+      "data_location": "data/hubspot_companies/hubspot-companies.sqlite",
+      "sync_script": "connectors/hubspot/sync-companies.js"
+    },
+    "deals": {
+      "description": "Sales deals and pipeline",
+      "data_location": "data/hubspot_deals/hubspot-deals.sqlite",
+      "sync_script": "connectors/hubspot/sync-deals.js"
+    },
+    "meetings": {
+      "description": "Meeting engagements",
+      "data_location": "data/hubspot_meetings/hubspot-meetings.sqlite",
+      "sync_script": "connectors/hubspot/sync-meetings.js"
+    }
+  },
+  "common_queries": {
+    "recent_contacts": {
+      "description": "Recently created contacts",
+      "sql": "SELECT * FROM contacts WHERE createdate >= date('now', '-30 days') ORDER BY createdate DESC"
+    },
+    "pipeline_analysis": {
+      "description": "Deals by stage",
+      "sql": "SELECT stage, COUNT(*) as count, SUM(amount) as total_value FROM deals GROUP BY stage"
+    },
+    "top_deals": {
+      "description": "Highest value deals",
+      "sql": "SELECT name, amount, stage FROM deals WHERE amount > 0 ORDER BY amount DESC LIMIT 10"
+    }
+  },
+  "api_integration": {
+    "method": "HubSpot REST API v3",
+    "authentication": "Private App token (Bearer)",
+    "env_var": "HUBSPOT_ACCESS_TOKEN",
+    "rate_limits": "Standard HubSpot API limits apply"
+  }
+}

@@ -1,0 +1,119 @@
+{
+  "system": "unified_viz_factory",
+  "description": "Consolidated visualization creation system using ApexCharts and Chart.js",
+  "location": "lib/viz/index.js",
+  "registry": "viz/visualizations.json",
+  "output_directory": "viz/",
+  "factory_api": {
+    "import": "import { VizFactory } from './lib/viz/index.js'",
+    "initialization": "const factory = new VizFactory()"
+    "create_method": {
+      "signature": "await factory.create(type, config)",
+      "parameters": {
+        "type": "string - Visualization type (apexcharts|venn|dashboard|bubble|industry|table|map)",
+        "config": "object - Visualization configuration"
+      }
+    }
+  },
+  "visualization_types": {
+    "apexcharts": {
+      "aliases": ["apex", "dashboard"],
+      "description": "Business dashboards and standard visualizations",
+      "use_cases": ["Q3 sales dashboards", "pipeline analysis", "trend visualizations"],
+      "service": "ApexChartsService"
+    },
+    "venn": {
+      "aliases": ["venndiagram"],
+      "description": "Venn diagrams for set overlap analysis using Chart.js",
+      "use_cases": ["Company overlap analysis", "data set comparisons", "intersection visualization"],
+      "service": "ChartJSVennService"
+    },
+    "table": {
+      "aliases": ["html"],
+      "description": "Simple HTML table visualizations",
+      "use_cases": ["Customer data tables", "contact directories", "data export views"],
+      "service": "HTMLTableService"
+    },
+    "map": {
+      "aliases": ["maplibre", "geojson"],
+      "description": "Geospatial maps with overlaid GeoJSON layers (MapLibre GL JS, CARTO basemaps)",
+      "use_cases": ["Municipal infrastructure overlays", "watershed/hydrology context", "service-request / pain-signal density"],
+      "service": null,
+      "convention": "standalone-html",
+      "notes": "Maps are written as standalone HTML in viz/ that loads GeoJSON from data/<connector>/. Auto-registers via VizRegistry.sync() on server start. Reusable pieces (popup framework, basemap definition, light/dark toggle) can be extracted into shared helpers once a second concrete map exists to compare against."
+    }
+  },
+  "configuration": {
+    "required_fields": {
+      "title": "string - Visualization title",
+      "data": "array|object - Visualization data"
+    },
+    "optional_fields": {
+      "type": "string - Visualization type identifier",
+      "description": "string - Visualization description",
+      "filename": "string - Custom filename (auto-generated if not provided)"
+    },
+    "auto_generated": {
+      "filename": "type-slug-timestamp format",
+      "timestamp": "Date.now()",
+      "date": "ISO string"
+    }
+  },
+  "visualization_registry": {
+    "location": "viz/visualizations.json",
+    "structure": {
+      "visualizations": "array - List of visualization metadata",
+      "lastUpdated": "string - ISO timestamp",
+      "totalVisualizations": "number - Count of visualizations",
+      "totalViews": "number - Aggregate view count"
+    },
+    "visualization_metadata": {
+      "vizId": "string - Unique identifier",
+      "filename": "string - HTML filename",
+      "title": "string - Display title",
+      "type": "string - Visualization type",
+      "library": "string - Visualization library used",
+      "url": "string - Relative URL path",
+      "size": "number - File size in bytes",
+      "date": "string - Creation date",
+      "views": "number - View count",
+      "lastViewed": "string|null - Last view timestamp"
+    }
+  },
+  "workflow": [
+    "1. Load data from connector (HubSpot, Mixpanel, etc.)",
+    "2. Transform data to visualization format",
+    "3. Call factory.create(type, config)",
+    "4. Visualization auto-saves to viz/",
+    "5. Registry automatically updates metadata",
+    "6. Dashboard detects new visualization within 30 seconds",
+    "7. Visualization appears as embedded tab"
+  ],
+  "example_usage": {
+    "hubspot_dashboard": {
+      "code": "const factory = new ChartFactory(); await factory.create('dashboard', { title: 'Q3 Sales Performance', data: dealData, type: 'dashboard' });",
+      "result": "ApexCharts dashboard with Q3 sales data"
+    },
+    "mixpanel_visualization": {
+      "code": "await factory.create('bubble', { title: 'Organization Activity', data: eventData, type: 'bubble' });",
+      "result": "D3 bubble visualization showing organization clustering"
+    }
+  },
+  "display_integration": {
+    "dashboard_url": "http://localhost:9220",
+    "auto_embedding": "Visualizations appear as tabs within 30 seconds",
+    "path_structure": "/viz/{filename}",
+    "focused_view": "Click tab to hide grid and show only selected visualization"
+  },
+  "legacy_note": "NEVER import old paths like lib/apexcharts/ or lib/d3/ - all consolidated into lib/viz/",
+  "chart_js_integration": {
+    "venn_diagrams": {
+      "package": "chartjs-chart-venn",
+      "installation": "npm install chartjs-chart-venn",
+      "asset_location": "app/assets/chartjs-chart-venn.js",
+      "chart_type": "venn",
+      "global_namespace": "ChartVenn",
+      "extract_method": "ChartVenn.extractSets(rawData, options)"
+    }
+  }
+}

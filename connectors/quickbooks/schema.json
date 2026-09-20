@@ -1,0 +1,54 @@
+{
+  "connector": "quickbooks",
+  "description": "QuickBooks Online accounting data - customers, invoices, payments, and reports",
+  "api_connector": "connectors/quickbooks/",
+  "objects": {
+    "customers": {
+      "description": "Customer records",
+      "data_location": "data/quickbooks/quickbooks.db",
+      "sync_script": "connectors/quickbooks/sync-quickbooks.js"
+    },
+    "invoices": {
+      "description": "Invoice records",
+      "data_location": "data/quickbooks/quickbooks.db",
+      "sync_script": "connectors/quickbooks/sync-quickbooks.js"
+    },
+    "payments": {
+      "description": "Payment records",
+      "data_location": "data/quickbooks/quickbooks.db",
+      "sync_script": "connectors/quickbooks/sync-quickbooks.js"
+    },
+    "items": {
+      "description": "Products and services",
+      "data_location": "data/quickbooks/quickbooks.db",
+      "sync_script": "connectors/quickbooks/sync-quickbooks.js"
+    }
+  },
+  "common_queries": {
+    "recent_invoices": {
+      "description": "Recently created invoices",
+      "sql": "SELECT * FROM invoices WHERE TxnDate >= date('now', '-30 days') ORDER BY TxnDate DESC"
+    },
+    "outstanding_invoices": {
+      "description": "Unpaid invoices",
+      "sql": "SELECT * FROM invoices WHERE Balance > 0 ORDER BY DueDate ASC"
+    },
+    "customer_list": {
+      "description": "All active customers",
+      "sql": "SELECT * FROM customers WHERE Active = 1 ORDER BY DisplayName"
+    }
+  },
+  "api_integration": {
+    "method": "QuickBooks Online API v3",
+    "authentication": "OAuth 2.0",
+    "env_vars": [
+      "QUICKBOOKS_CLIENT_ID",
+      "QUICKBOOKS_CLIENT_SECRET",
+      "QUICKBOOKS_ACCESS_TOKEN",
+      "QUICKBOOKS_REFRESH_TOKEN",
+      "QUICKBOOKS_COMPANY_ID"
+    ],
+    "oauth_url": "https://benevolent-malabi-37c3f8.netlify.app/.netlify/functions/oauth",
+    "rate_limits": "100 requests/min, 5000 requests/day"
+  }
+}
