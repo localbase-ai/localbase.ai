@@ -1,0 +1,48 @@
+{
+  "name": "localbase-app",
+  "version": "1.0.0",
+  "description": "LocalBase Browser UI - Local-first analytics workspace",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview"
+  },
+  "dependencies": {
+    "@dnd-kit/core": "^6.3.1",
+    "@dnd-kit/sortable": "^10.0.0",
+    "@dnd-kit/utilities": "^3.2.2",
+    "@radix-ui/react-label": "^2.1.10",
+    "apexcharts": "^4.0.0",
+    "chart.js": "^4.4.2",
+    "chartjs-chart-venn": "^4.3.0",
+    "class-variance-authority": "^0.7.0",
+    "clsx": "^2.1.0",
+    "lucide-react": "^0.344.0",
+    "ml-random-forest": "^2.1.0",
+    "react": "^18.3.1",
+    "react-apexcharts": "^1.4.1",
+    "react-chartjs-2": "^5.2.0",
+    "react-dom": "^18.3.1",
+    "recharts": "^2.12.7",
+    "tailwind-merge": "^2.2.1"
+  },
+  "devDependencies": {
+    "@vitejs/plugin-react": "^6.0.3",
+    "autoprefixer": "^10.5.2",
+    "baseline-browser-mapping": "^2.10.38",
+    "postcss": "^8.4.35",
+    "tailwindcss": "^3.4.1",
+    "tailwindcss-animate": "^1.0.7",
+    "vite": "^8.1.0"
+  },
+  "overrides": {
+    "esbuild": "0.28.1",
+    "glob": "10.5.0",
+    "lodash": "4.18.1",
+    "minimatch": "9.0.7",
+    "path-to-regexp": "8.4.0",
+    "picomatch": "2.3.2",
+    "rollup": "4.59.0"
+  }
+}

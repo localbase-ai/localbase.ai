@@ -1,0 +1,6 @@
+#!/bin/bash
+# Optional maintainer-only check. Copy this file to banned-terms.local.sh and
+# add private instance, business, customer, project, or codename terms used on
+# your machine. The copied file is gitignored and must never be committed.
+BANNED_PRIVATE_TERMS=''
+# BANNED_INSTANCE_NAMES is still accepted for older local files.

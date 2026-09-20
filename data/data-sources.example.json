@@ -1,0 +1,36 @@
+{
+  "sources": {
+    "hubspot-contacts": {
+      "name": "HubSpot Contacts",
+      "type": "automated",
+      "connector": "hubspot",
+      "sync_script": "node connectors/hubspot/sync-contacts.js",
+      "database": "data/hubspot_contacts/hubspot-contacts.sqlite",
+      "last_sync": null
+    },
+    "hubspot-companies": {
+      "name": "HubSpot Companies",
+      "type": "automated",
+      "connector": "hubspot",
+      "sync_script": "node connectors/hubspot/sync-companies.js",
+      "database": "data/hubspot_companies/hubspot-companies.sqlite",
+      "last_sync": null
+    },
+    "hubspot-deals": {
+      "name": "HubSpot Deals",
+      "type": "automated",
+      "connector": "hubspot",
+      "sync_script": "node connectors/hubspot/sync-deals.js",
+      "database": "data/hubspot_deals/hubspot-deals.sqlite",
+      "last_sync": null
+    },
+    "hubspot-meetings": {
+      "name": "HubSpot Meetings",
+      "type": "automated",
+      "connector": "hubspot",
+      "sync_script": "node connectors/hubspot/sync-meetings.js",
+      "database": "data/hubspot_meetings/hubspot-meetings.sqlite",
+      "last_sync": null
+    }
+  }
+}

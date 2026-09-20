@@ -1,0 +1,57 @@
+{
+  "name": "localbase",
+  "version": "1.0.0",
+  "description": "Local-first analytics framework: your data stays on your machine, in SQLite you own.",
+  "type": "module",
+  "scripts": {
+    "start": "node tools/server/app-server.js",
+    "dev": "concurrently \"npm start\" \"cd app && npm run dev\"",
+    "build": "cd app && npm run build",
+    "web": "npm start & sleep 2 && open http://localhost:${LOCALBASE_API_PORT:-9220}",
+    "mcp": "node tools/mcp/server.js",
+    "all": "npm run mcp & npm start",
+    "server:watch": "node --watch tools/server/app-server.js",
+    "test": "./scripts/run-tests.sh",
+    "test:browser": "npm run build && node scripts/browser-smoke.js",
+    "test:watch": "node --test --watch test/**/*.test.js"
+  },
+  "dependencies": {
+    "@anthropic-ai/sdk": "^0.115.0",
+    "@modelcontextprotocol/sdk": "^1.30.0",
+    "axios": "^1.19.0",
+    "better-sqlite3": "^13.0.3",
+    "cors": "^2.8.5",
+    "csv-parse": "^7.0.2",
+    "dotenv": "^17.4.2",
+    "express": "^5.1.0",
+    "openai": "^6.42.0"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.63.0",
+    "concurrently": "^10.0.4",
+    "light-my-request": "^6.6.0"
+  },
+  "overrides": {
+    "@hono/node-server": "1.19.15",
+    "brace-expansion": "2.0.3",
+    "hono": "4.13.8",
+    "path-to-regexp": "8.4.0",
+    "fast-uri": "4.2.1",
+    "qs": "6.16.0"
+  },
+  "keywords": [
+    "analytics",
+    "local-first",
+    "sqlite",
+    "localbase",
+    "claude",
+    "mcp"
+  ],
+  "author": "Ryan Riggin",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/localbase-ai/localbase.ai"
+  },
+  "homepage": "https://github.com/localbase-ai/localbase.ai"
+}
