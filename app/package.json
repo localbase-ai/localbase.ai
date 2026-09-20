@@ -28,7 +28,7 @@
     "tailwind-merge": "^2.2.1"
   },
   "devDependencies": {
-    "@vitejs/plugin-react": "^6.0.3",
+    "@vitejs/plugin-react": "^6.1.1",
     "autoprefixer": "^10.5.2",
     "baseline-browser-mapping": "^2.10.38",
     "postcss": "^8.4.35",
