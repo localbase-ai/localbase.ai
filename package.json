@@ -18,7 +18,7 @@
   "dependencies": {
     "@anthropic-ai/sdk": "^0.115.0",
     "@modelcontextprotocol/sdk": "^1.30.0",
-    "axios": "^1.19.0",
+    "axios": "^1.20.0",
     "better-sqlite3": "^13.0.3",
     "cors": "^2.8.5",
     "csv-parse": "^7.0.2",
