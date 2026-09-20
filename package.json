@@ -24,7 +24,7 @@
     "csv-parse": "^7.0.2",
     "dotenv": "^17.4.2",
     "express": "^5.1.0",
-    "openai": "^6.42.0"
+    "openai": "^7.17.0"
   },
   "devDependencies": {
     "@playwright/test": "^1.63.0",
