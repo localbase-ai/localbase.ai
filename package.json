@@ -28,7 +28,7 @@
   },
   "devDependencies": {
     "@playwright/test": "^1.63.0",
-    "concurrently": "^10.0.4",
+    "concurrently": "^10.0.5",
     "light-my-request": "^6.6.0"
   },
   "overrides": {
