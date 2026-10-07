@@ -18,15 +18,13 @@
     "release:check": "bash scripts/release-check.sh"
   },
   "dependencies": {
-    "@anthropic-ai/sdk": "^0.115.0",
-    "@modelcontextprotocol/sdk": "^1.30.0",
+    "@modelcontextprotocol/sdk": "^1.32.1",
     "axios": "^1.19.0",
     "better-sqlite3": "^13.0.3",
     "cors": "^2.8.5",
-    "csv-parse": "^7.0.2",
-    "dotenv": "^17.4.2",
-    "express": "^5.1.0",
-    "openai": "^6.42.0"
+    "csv-parse": "^7.0.3",
+    "dotenv": "^18.0.6",
+    "express": "^5.1.0"
   },
   "devDependencies": {
     "@playwright/test": "^1.63.0",

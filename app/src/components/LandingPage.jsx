@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react'
-import { Bot, Copy, Check, Github } from 'lucide-react'
+import { Bot, Copy, Check, GitFork } from 'lucide-react'
 
 const INSTALL_COMMAND = 'curl -fsSL https://localbase.ai/install | bash'
 
@@ -123,7 +123,7 @@ export default function LandingPage({ onEnterApp }) {
               rel="noopener noreferrer"
               className="flex items-center gap-2 px-4 py-2 bg-zinc-900 hover:bg-zinc-800 border border-zinc-800 hover:border-green-400/50 rounded-xl text-sm text-zinc-400 hover:text-white transition-all"
             >
-              <Github className="h-4 w-4" />
+              <GitFork className="h-4 w-4" />
               <span className="hidden sm:inline">GitHub</span>
             </a>
           </div>

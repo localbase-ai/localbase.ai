@@ -264,7 +264,7 @@ export default function VisualizationViewer() {
           </Button>
         </div>
         <div className="flex-1 bg-background overflow-auto">
-          <iframe key={iframeKey} src={iframeUrl} className="w-full h-full border-0" title={selectedViz.title} sandbox={VIZ_SANDBOX} allow="fullscreen; clipboard-write" allowFullScreen />
+          <iframe key={iframeKey} src={iframeUrl || undefined} className="w-full h-full border-0" title={selectedViz.title} sandbox={VIZ_SANDBOX} allow="fullscreen; clipboard-write" allowFullScreen />
         </div>
       </div>
     )

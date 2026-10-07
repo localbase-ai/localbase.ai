@@ -14,7 +14,11 @@ import { resolveDatasetCsv } from './dataset.js';
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
 // Load environment variables from env.local (relative to project root)
-config({ path: path.join(__dirname, '..', '..', 'env.local') });
+// stdout is the MCP protocol channel: any stray line breaks the client.
+// dotenv 17 prints "injected env" tips there by default; this silences them
+// for this file and for every connector loaded below, on any dotenv version.
+process.env.DOTENV_CONFIG_QUIET = 'true';
+config({ path: path.join(__dirname, '..', '..', 'env.local'), quiet: true });
 
 // Built-in tool names are reserved: a connector may not shadow them.
 const BUILTIN_TOOLS = new Set([
