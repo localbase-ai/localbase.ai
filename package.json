@@ -18,7 +18,7 @@
     "release:check": "bash scripts/release-check.sh"
   },
   "dependencies": {
-    "@anthropic-ai/sdk": "^0.115.0",
+    "@anthropic-ai/sdk": "^0.131.0",
     "@modelcontextprotocol/sdk": "^1.30.0",
     "axios": "^1.19.0",
     "better-sqlite3": "^13.0.3",
