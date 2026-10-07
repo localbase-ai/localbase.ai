@@ -172,7 +172,7 @@ export default function LandingPage({ onEnterApp }) {
 
               {/* Terminal command box */}
               <div className="relative">
-                <div className="absolute -inset-1 bg-gradient-to-r from-green-400/20 via-transparent to-green-400/20 rounded-2xl blur-xl opacity-50" />
+                <div className="absolute -inset-1 bg-linear-to-r from-green-400/20 via-transparent to-green-400/20 rounded-2xl blur-xl opacity-50" />
 
                 <div className="relative bg-zinc-900 border border-zinc-800 rounded-xl sm:rounded-2xl overflow-hidden">
                   {/* Terminal header */}

@@ -423,7 +423,7 @@ export default function Overview({ onNavigateHome }) {
   // Show setup modal when changing project
   if (showingSetup) {
     return (
-      <div className="fixed inset-0 bg-background z-50">
+      <div className="fixed inset-0 m-0 bg-background z-50">
         <Setup onComplete={handleSetupComplete} />
       </div>
     )
@@ -477,7 +477,7 @@ export default function Overview({ onNavigateHome }) {
 
       {/* Add Connector Modal */}
       {showAddConnector && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+        <div className="fixed inset-0 m-0 bg-black/50 flex items-center justify-center z-50">
           <Card className="w-full max-w-lg mx-4">
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
@@ -663,7 +663,7 @@ export default function Overview({ onNavigateHome }) {
         const template = availableConnectors.find(c => c.id === configuringConnector.id)
         if (!template) return null
         return (
-          <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+          <div className="fixed inset-0 m-0 bg-black/50 flex items-center justify-center z-50">
             <Card className="w-full max-w-lg mx-4">
               <CardHeader>
                 <CardTitle className="flex items-center gap-2">
@@ -865,7 +865,7 @@ export default function Overview({ onNavigateHome }) {
                     <div className="flex items-start justify-between gap-4">
                       <div className="flex-1 min-w-0">
                         <div className="flex items-center gap-2 mb-1">
-                          <Database className="h-4 w-4 text-green-400 flex-shrink-0" />
+                          <Database className="h-4 w-4 text-green-400 shrink-0" />
                           <h3 className="font-medium truncate">{source.name}</h3>
                         </div>
                         <div className="flex items-center gap-4 text-sm text-muted-foreground">
@@ -880,7 +880,7 @@ export default function Overview({ onNavigateHome }) {
                         </div>
                       </div>
                       <div className="flex items-center gap-3">
-                        <div className="flex-shrink-0 text-right">
+                        <div className="shrink-0 text-right">
                           <div className={`text-sm font-medium ${
                             syncStatus[source.id] === 'success'
                               ? 'text-green-400'
@@ -990,7 +990,7 @@ export default function Overview({ onNavigateHome }) {
                   onChange={(e) => handleToggleSingleWorkspace(e.target.checked)}
                   className="sr-only peer"
                 />
-                <div className="w-11 h-6 bg-muted peer-focus:outline-none peer-focus:ring-2 peer-focus:ring-green-400/50 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-green-400"></div>
+                <div className="w-11 h-6 bg-muted peer-focus:outline-hidden peer-focus:ring-2 peer-focus:ring-green-400/50 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-green-400"></div>
               </label>
             </div>
           </CardContent>

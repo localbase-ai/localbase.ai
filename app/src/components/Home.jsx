@@ -357,7 +357,7 @@ export default function Home({ onWorkspaceSelected, previewLogin = false, previe
                       </CardHeader>
                       {/* Delete confirmation */}
                       {deleteConfirm === project.path && (
-                        <div className="absolute inset-0 bg-card/95 backdrop-blur-sm flex items-center justify-center rounded-lg border border-red-500/50">
+                        <div className="absolute inset-0 bg-card/95 backdrop-blur-xs flex items-center justify-center rounded-lg border border-red-500/50">
                           <div className="text-center space-y-2 p-3">
                             <p className="text-xs text-red-400 font-medium">Delete this workspace?</p>
                             <p className="text-xs text-muted-foreground">This cannot be undone</p>

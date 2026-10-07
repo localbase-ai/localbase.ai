@@ -1,12 +1,10 @@
 # Known advisories accepted on purpose. Each entry needs a reason and an
 # expiry date; when it expires the CI scan fails again and forces a re-check.
-
-[[IgnoredVulns]]
-id = "GHSA-vfj7-8cjw-p6xm"
-ignoreUntil = 2027-01-31
-reason = "braces 3.0.3 (no fixed release yet): denial of service on hostile glob patterns. Only reachable through the Tailwind 3 build, whose inputs are this repo's own files."
-
-[[IgnoredVulns]]
-id = "GHSA-rj75-hqrm-r3gf"
-ignoreUntil = 2027-01-31
-reason = "postcss-selector-parser 6.x: CPU exhaustion on hostile CSS selectors. Only reachable through the Tailwind 3 build (this repo's own CSS); the fix is 7.x, which Tailwind 3 can't use. Goes away with Tailwind 4."
+#
+# Format:
+#   [[IgnoredVulns]]
+#   id = "GHSA-xxxx-xxxx-xxxx"
+#   ignoreUntil = 2027-01-31
+#   reason = "Why it can't be exploited here, and what would fix it."
+#
+# Currently empty: nothing is accepted.

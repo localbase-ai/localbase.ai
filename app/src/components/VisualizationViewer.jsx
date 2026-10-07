@@ -298,7 +298,7 @@ export default function VisualizationViewer() {
           placeholder="Search visualizations... (⌘K)"
           value={searchQuery}
           onChange={(e) => setSearchQuery(e.target.value)}
-          className="w-full pl-10 pr-4 py-2 bg-card border border-border rounded-lg text-foreground placeholder:text-muted-foreground focus:border-green-400 focus:outline-none transition-colors"
+          className="w-full pl-10 pr-4 py-2 bg-card border border-border rounded-lg text-foreground placeholder:text-muted-foreground focus:border-green-400 focus:outline-hidden transition-colors"
         />
         {searchQuery && (
           <button onClick={() => setSearchQuery('')} className="absolute right-3 top-1/2 transform -translate-y-1/2 text-muted-foreground hover:text-foreground">
@@ -386,7 +386,7 @@ export default function VisualizationViewer() {
 
       {/* Delete Modal */}
       {deleteConfirm && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center">
+        <div className="fixed inset-0 m-0 z-50 flex items-center justify-center">
           <div className="absolute inset-0 bg-black/60" onClick={() => setDeleteConfirm(null)} />
           <div className="relative bg-card border border-border rounded-lg shadow-xl max-w-md w-full mx-4 p-6">
             <h3 className="text-lg font-semibold mb-2">Delete "{deleteConfirm.title}"?</h3>
@@ -407,12 +407,12 @@ function VizCard({ viz, onClick, onPin, onDelete, deletingId, formatDate }) {
   return (
     <Card className="group cursor-pointer transition-all hover:border-green-400/50 overflow-hidden" onClick={() => onClick(viz)}>
       <div className="flex gap-3 p-3">
-        <div className="w-20 h-20 flex-shrink-0 bg-background/50 relative overflow-hidden rounded border border-border/50 flex items-center justify-center">
+        <div className="w-20 h-20 shrink-0 bg-background/50 relative overflow-hidden rounded border border-border/50 flex items-center justify-center">
           <BarChart3 className="h-10 w-10 text-green-400/30" />
         </div>
         <div className="flex-1 min-w-0 py-1">
           <div className="flex items-start gap-2 mb-1">
-            <BarChart3 className="h-4 w-4 text-green-400 flex-shrink-0 mt-0.5" />
+            <BarChart3 className="h-4 w-4 text-green-400 shrink-0 mt-0.5" />
             <h3 className="text-sm font-semibold leading-tight">{viz.title}</h3>
           </div>
           <p className="text-xs text-muted-foreground">{viz.description || `Created ${formatDate(viz.createdAt)}`}</p>
@@ -437,7 +437,7 @@ function VizListItem({ viz, onClick, onPin, onDelete, deletingId, formatDate }) 
   return (
     <Card className="group cursor-pointer transition-all hover:border-green-400/50" onClick={() => onClick(viz)}>
       <div className="flex items-center gap-4 p-4">
-        <BarChart3 className="h-5 w-5 text-green-400 flex-shrink-0" />
+        <BarChart3 className="h-5 w-5 text-green-400 shrink-0" />
         <div className="flex-1 min-w-0">
           <h3 className="text-sm font-semibold truncate">{viz.title}</h3>
           <p className="text-xs text-muted-foreground">{viz.description || `Created ${formatDate(viz.createdAt)}`}</p>
@@ -447,10 +447,10 @@ function VizListItem({ viz, onClick, onPin, onDelete, deletingId, formatDate }) 
           <span>{viz.library}</span>
           <span>{formatDate(viz.createdAt)}</span>
         </div>
-        <Button variant="ghost" size="icon" className={`h-8 w-8 transition-opacity flex-shrink-0 ${viz.pinned ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'}`} onClick={(e) => onPin(e, viz)}>
+        <Button variant="ghost" size="icon" className={`h-8 w-8 transition-opacity shrink-0 ${viz.pinned ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'}`} onClick={(e) => onPin(e, viz)}>
           <Star className={`h-4 w-4 ${viz.pinned ? 'fill-yellow-400 text-yellow-400' : 'text-muted-foreground hover:text-yellow-400'}`} />
         </Button>
-        <Button variant="ghost" size="icon" className="h-8 w-8 opacity-0 group-hover:opacity-100 transition-opacity text-muted-foreground hover:text-destructive flex-shrink-0" onClick={(e) => onDelete(e, viz)} disabled={deletingId === viz.id}>
+        <Button variant="ghost" size="icon" className="h-8 w-8 opacity-0 group-hover:opacity-100 transition-opacity text-muted-foreground hover:text-destructive shrink-0" onClick={(e) => onDelete(e, viz)} disabled={deletingId === viz.id}>
           <Trash2 className="h-4 w-4" />
         </Button>
       </div>

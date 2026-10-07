@@ -362,7 +362,7 @@ function LocalBaseApp({ previewLogin = false, previewMode = false, previewWorksp
   return (
     <div className="flex h-screen bg-background text-foreground dark flex-col">
       {/* Top Bar */}
-      <div className="h-14 bg-white/[0.1] backdrop-blur-xl border-b border-white/15 flex items-center justify-between px-4">
+      <div className="h-14 bg-white/10 backdrop-blur-xl border-b border-white/15 flex items-center justify-between px-4">
         <div
           className="flex items-center gap-2 cursor-pointer hover:opacity-80 transition-opacity"
           onClick={() => setSelectedView('home')}
@@ -394,7 +394,7 @@ function LocalBaseApp({ previewLogin = false, previewMode = false, previewWorksp
         <div
           className={`${
             sidebarCollapsed ? 'w-16' : 'w-64'
-          } bg-white/[0.075] backdrop-blur-xl border-r border-white/15 transition-all duration-300 flex flex-col`}
+          } bg-white/7.5 backdrop-blur-xl border-r border-white/15 transition-all duration-300 flex flex-col`}
         >
         {/* Navigation */}
         <nav className="flex-1 p-2 pt-4">

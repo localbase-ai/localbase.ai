@@ -49,7 +49,7 @@ export default function PreviewLogin({ workspace, onAuthenticated }) {
               autoComplete="current-password"
               value={password}
               onChange={(event) => setPassword(event.target.value)}
-              className="h-10 w-full rounded-md border border-border bg-background/70 pl-10 pr-3 text-sm outline-none ring-offset-background placeholder:text-muted-foreground focus-visible:border-green-400/60 focus-visible:ring-2 focus-visible:ring-green-400/30"
+              className="h-10 w-full rounded-md border border-border bg-background/70 pl-10 pr-3 text-sm outline-hidden ring-offset-background placeholder:text-muted-foreground focus-visible:border-green-400/60 focus-visible:ring-2 focus-visible:ring-green-400/30"
               required
               autoFocus
             />
