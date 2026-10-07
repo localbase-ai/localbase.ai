@@ -63,7 +63,7 @@ For a browser-only view, build the app and start the authenticated preview serve
 npm run build
 node tools/preview/server.js \
   --workspace /absolute/path/to/workspace \
-  --credentials /absolute/path/to/workspace/data/preview/auth.json \
+  --credentials ~/.localbase/preview/my-business.json \
   --port 9232
 ```
 

@@ -4,3 +4,11 @@
 # your machine. The copied file is gitignored and must never be committed.
 BANNED_PRIVATE_TERMS=''
 # BANNED_INSTANCE_NAMES is still accepted for older local files.
+#
+# You can list every instance name here, this one included: banned-terms.sh
+# drops the current repo's own name automatically, so the same list is safe to
+# copy to every instance.
+#
+# If a broad term unavoidably matches vendor data (a competitor URL in a CRM
+# property dump, say), exclude those paths rather than weakening the term:
+# BANNED_TERMS_FILE_EXCLUDE_EXTRA='connectors/<crm>/<property-dump>\.json'

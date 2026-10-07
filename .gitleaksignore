@@ -1,4 +1,3 @@
 # Gitleaks ignore file
 # Ignore false positives in minified build files (use fingerprints from gitleaks output)
-electron-app/dist/index-CIj8qjtS.js:generic-api-key:236
 app/dist/index-CIj8qjtS.js:generic-api-key:236

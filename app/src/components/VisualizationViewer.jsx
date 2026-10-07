@@ -1,19 +1,12 @@
 import { useState, useEffect, useRef } from 'react'
+import { vizUrl, isVizMessage, VIZ_SANDBOX } from '@/lib/vizOrigin'
 import { X, BarChart3, Trash2, LayoutGrid, List, Search, Star, Presentation } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
 import { parseUrl } from '@/lib/router'
 
 // Helper to build viz URLs - uses HTTP in browser mode, localbase:// in Electron
-const buildVizUrl = (vizPath) => {
-  const isBrowserMode = !window.electronAPI?.terminal
-  const path = vizPath.replace(/^\//, '')
-  const timestamp = Date.now()
-  if (isBrowserMode) {
-    return `/${path}?t=${timestamp}`
-  }
-  return `localbase://${path}?t=${timestamp}`
-}
+const buildVizUrl = (vizPath) => `${vizUrl(vizPath)}?t=${Date.now()}`
 
 export default function VisualizationViewer() {
   const [visualizations, setVisualizations] = useState([])
@@ -76,6 +69,8 @@ export default function VisualizationViewer() {
       if (viz) setSelectedViz(viz)
     }
     const handleMessage = (e) => {
+      // Vizzes are served from this origin; any other sender is a page that framed us.
+      if (!isVizMessage(e)) return
       if (e.data?.type === 'viz:select' && e.data?.vizId) {
         const viz = visualizations.find(v => v.id === e.data.vizId)
         if (viz) setSelectedViz(viz)
@@ -116,20 +111,15 @@ export default function VisualizationViewer() {
     }
   }, [visualizations, initialRestoreAttempted])
 
-  // URL: update ?viz= param when selection changes
-  useEffect(() => {
-    if (!initialRestoreAttempted) return
-    const currentVizId = new URLSearchParams(window.location.search).get('viz')
-    if (selectedViz && selectedViz.id !== currentVizId) {
-      const url = new URL(window.location.href)
-      url.searchParams.set('viz', selectedViz.id)
-      window.history.pushState({}, '', url)
-    } else if (!selectedViz && currentVizId) {
-      const url = new URL(window.location.href)
-      url.searchParams.delete('viz')
-      window.history.pushState({}, '', url)
-    }
-  }, [selectedViz, initialRestoreAttempted])
+  // No history write here on purpose. App.jsx owns the URL: selecting a viz
+  // dispatches viz:urlUpdate with its id, "Back to Gallery" dispatches null, and
+  // App's effect pushes the matching path. This component used to ALSO push a
+  // ?viz= query form for the same click, which cost two history entries per
+  // navigation — so one Back press only undid half of it and landed on
+  // /visualizations?viz=<id>, a URL whose path and query disagree. parseUrl
+  // reads query params before the path, so the query won and the viz stayed on
+  // screen: Back appeared to do nothing. ?viz= is still READ (see parseUrl and
+  // the popstate handler below) so existing bookmarks keep resolving.
 
   // URL: handle browser back/forward
   useEffect(() => {
@@ -274,7 +264,7 @@ export default function VisualizationViewer() {
           </Button>
         </div>
         <div className="flex-1 bg-background overflow-auto">
-          <iframe key={iframeKey} src={iframeUrl} className="w-full h-full border-0" title={selectedViz.title} allow="fullscreen" allowFullScreen />
+          <iframe key={iframeKey} src={iframeUrl} className="w-full h-full border-0" title={selectedViz.title} sandbox={VIZ_SANDBOX} allow="fullscreen; clipboard-write" allowFullScreen />
         </div>
       </div>
     )

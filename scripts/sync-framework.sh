@@ -34,19 +34,31 @@ rsync -av --delete \
   $FRAMEWORK_DIR/app/ $INSTANCE_DIR/app/
 
 # Sync tools/ framework
+#
+# tools/cli/ is excluded: the `localbase` CLI lives there on disk but is
+# gitignored (removed from the repo 2026-08-29, kept locally). rsync reads the
+# filesystem, not git, so without this every sync copied it into each instance.
 echo "🔧 Syncing tools/..."
 rsync -av --delete \
   --exclude 'node_modules' \
   --exclude '.DS_Store' \
+  --exclude 'cli/' \
   $FRAMEWORK_DIR/tools/ $INSTANCE_DIR/tools/
 
 # Sync scripts/ — including sync-framework.sh itself so script fixes propagate.
 # (The currently-running script's logic is unchanged mid-run; the new version
 # takes effect on the *next* sync.)
+#
+# banned-terms.local.sh is excluded on purpose: it is gitignored, per-machine,
+# and the one place an instance can tune its own scan (extra terms, or
+# BANNED_TERMS_FILE_EXCLUDE_EXTRA for vendor data a broad term unavoidably
+# matches). Copying the framework's over it silently discarded that tuning on
+# every sync. The .example beside it still syncs, so the documentation travels.
 echo "📜 Syncing scripts/..."
 mkdir -p $INSTANCE_DIR/scripts
 rsync -av \
   --exclude '.DS_Store' \
+  --exclude 'lib/banned-terms.local.sh' \
   $FRAMEWORK_DIR/scripts/ $INSTANCE_DIR/scripts/
 
 # Sync .claude/commands/ (Claude Code slash commands)

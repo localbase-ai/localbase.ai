@@ -16,7 +16,7 @@ export class BaseConnector {
     this.authType = config.authType || 'none'; // 'bearer', 'basic', 'apikey', 'custom', 'none'
     this.credentials = config.credentials || {};
     this.rateLimit = config.rateLimit || null; // milliseconds between requests
-    this.retryAttempts = config.retryAttempts || 3;
+    this.retryAttempts = config.retryAttempts ?? 3; // ?? so 0 means "no retries"
     this.timeout = config.timeout || 30000;
     this.lastRequestTime = 0;
 
@@ -118,8 +118,7 @@ export class BaseConnector {
 
     const requestOptions = {
       method,
-      headers: requestHeaders,
-      timeout: this.timeout
+      headers: requestHeaders
     };
 
     if (body && method !== 'GET') {
@@ -131,7 +130,10 @@ export class BaseConnector {
       try {
         console.log(`${attempt > 0 ? '🔄' : '🔗'} ${this.name}: ${method} ${endpoint}${attempt > 0 ? ` (attempt ${attempt + 1})` : ''}`);
 
-        const response = await fetch(url, requestOptions);
+        const response = await fetch(url, {
+          ...requestOptions,
+          signal: AbortSignal.timeout(this.timeout)
+        });
 
         // Log rate limit info if available
         const rateLimitRemaining = response.headers.get('X-RateLimit-Remaining') || response.headers.get('RateLimit-Remaining');
@@ -162,6 +164,9 @@ export class BaseConnector {
         return data;
 
       } catch (error) {
+        if (error.name === 'TimeoutError' || error.name === 'AbortError') {
+          error = new Error(`${this.name}: no response after ${this.timeout}ms (${method} ${endpoint})`);
+        }
         const isLastAttempt = attempt === retries;
 
         if (isLastAttempt) {
@@ -171,14 +176,15 @@ export class BaseConnector {
 
         // Exponential backoff
         const backoffTime = Math.min(1000 * Math.pow(2, attempt), 10000);
-        console.warn(`⚠️  ${this.name} request failed, retrying in ${backoffTime}ms...`);
+        console.warn(`⚠️  ${this.name} request failed (${error.message}), retrying in ${backoffTime}ms...`);
         await new Promise(resolve => setTimeout(resolve, backoffTime));
       }
     }
   }
 
   /**
-   * Paginate through all results
+   * Paginate through all results.
+   * Throws if any page fails after retries; it never returns a partial list.
    */
   async makeAllRequests(endpoint, options = {}) {
     const {
@@ -225,8 +231,15 @@ export class BaseConnector {
         currentPage++;
 
       } catch (error) {
+        // Throw, never break. Returning the pages fetched so far as if they were
+        // the whole result made a dead network look like a quiet day: a long sync
+        // where every request failed logged "Success: true, 0 new" and advanced
+        // last_sync. Callers that genuinely want partial results can catch this.
         console.error(`❌ ${this.name} pagination error on page ${currentPage}:`, error.message);
-        break;
+        throw new Error(
+          `${this.name}: pagination failed on page ${currentPage} after ${allData.length} records (${endpoint}): ${error.message}`,
+          { cause: error }
+        );
       }
     }
 

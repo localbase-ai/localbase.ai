@@ -4,9 +4,18 @@
 # Comprehensive security scan before commits
 # Exit code 1 = FAIL, 0 = PASS
 #
-# When the repo has no remote, the public-exposure checks (research/ allowlist,
-# email addresses) are skipped — they exist to prevent leaks to a public remote.
-# Gitleaks, secret patterns, env files, IPs, large files, etc. still run.
+# The public-exposure checks (research/ allowlist, email addresses) are skipped
+# when nothing here can reach the public: the repo has no remote, or its remote
+# is declared private. Gitleaks, secret patterns, env files, IPs, large files
+# and the private-term scan still run either way.
+#
+# "Has a remote" is not "is public". An instance pushed to a private repo shared
+# with its own team is the intended audience for the contact data in its vizzes,
+# so failing on it is noise — and a scanner that is permanently red is one you
+# stop reading. Declare such a repo with
+#   LOCALBASE_REMOTE_PRIVATE=1
+# in the gitignored scripts/lib/banned-terms.local.sh, which is sourced below.
+# Never set it on a repo that is public, or that might be made public later.
 
 set -e
 
@@ -16,16 +25,20 @@ cd "$REPO_ROOT"
 # Shared banned-term lists (instance names, etc.)
 . "$REPO_ROOT/scripts/lib/banned-terms.sh"
 
-# Detect whether this is a private (no-remote) repo
+# Detect whether anything here can reach the public (see the note at the top).
 if [ -z "$(git remote -v)" ]; then
   PRIVATE_LOCAL=1
+  PRIVATE_REASON="no remote"
+elif [ "$LOCALBASE_REMOTE_PRIVATE" = "1" ]; then
+  PRIVATE_LOCAL=1
+  PRIVATE_REASON="remote declared private"
 else
   PRIVATE_LOCAL=0
 fi
 
 echo "🔒 LocalBase.ai Security Scanner"
 if [ "$PRIVATE_LOCAL" = "1" ]; then
-  echo "   (private-local mode — public-exposure checks relaxed)"
+  echo "   (private mode — $PRIVATE_REASON — public-exposure checks relaxed)"
 fi
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 echo ""
@@ -55,7 +68,7 @@ echo "2️⃣  Checking for business / instance names..."
 if [ -z "$BANNED_PRIVATE_TERMS" ]; then
   echo "⏭️  SKIP: no private-term list configured"
 else
-  BUSINESS_REFS=$(git ls-files | xargs grep -iE "$BANNED_PRIVATE_TERMS" 2>/dev/null | \
+  BUSINESS_REFS=$(git ls-files | xargs grep -iE "$BANNED_PRIVATE_TERMS_RE" 2>/dev/null | \
     grep -vE "$BANNED_TERMS_FILE_EXCLUDE" || true)
   if [ -n "$BUSINESS_REFS" ]; then
     echo "❌ FAIL: Found private-term references"
@@ -93,8 +106,17 @@ echo "4️⃣  Checking for data PII in tracked files..."
 # Look for phone number patterns in CSVs and data files.
 # Require at least one separator (- . or space) to avoid matching long financial
 # figures like total_assets_thousands which can appear as 10+ contiguous digits.
-DATA_PII=$(git ls-files "*.csv" "*.json" 2>/dev/null | xargs grep -lE "\b[0-9]{3}[-. ][0-9]{3}[-. ][0-9]{4}\b|\([0-9]{3}\) ?[0-9]{3}[-. ][0-9]{4}" 2>/dev/null | \
-  grep -v "example\|test\|mock" || true)
+#
+# North American toll-free prefixes are excluded. A toll-free number is a
+# business line by definition and cannot identify a private individual, and
+# parsed card statements are full of them — merchant descriptors carry the
+# vendor's support number, so every statement file looked like a PII leak.
+# Filtering is per line, then files are listed, so a file is only reported when
+# it holds a number that is not toll-free.
+DATA_PII=$(git ls-files "*.csv" "*.json" 2>/dev/null | \
+  xargs grep -EH "\b[0-9]{3}[-. ][0-9]{3}[-. ][0-9]{4}\b|\([0-9]{3}\) ?[0-9]{3}[-. ][0-9]{4}" 2>/dev/null | \
+  grep -vE "\b(800|833|844|855|866|877|888)[-. ][0-9]{3}[-. ][0-9]{4}\b|\((800|833|844|855|866|877|888)\) ?[0-9]{3}[-. ][0-9]{4}" | \
+  grep -v "example\|test\|mock" | cut -d: -f1 | sort -u || true)
 if [ -n "$DATA_PII" ]; then
   echo "❌ FAIL: Found potential PII (phone numbers) in data files"
   echo "$DATA_PII"
@@ -145,10 +167,11 @@ echo ""
 # 8. Email Addresses Check
 echo "8️⃣  Checking for email addresses..."
 if [ "$PRIVATE_LOCAL" = "1" ]; then
-  echo "⏭️  SKIP: private-local repo (no remote)"
+  echo "⏭️  SKIP: private repo ($PRIVATE_REASON)"
 else
   EMAILS=$(git ls-files | xargs grep -iE "[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}" 2>/dev/null | \
-    grep -v "example@\|noreply@\|sam@sgratzl\|README\|CLAUDE\|AGENTS\|package.json\|package-lock.json\|author\|LIKE '%@\|security-check.sh\|test@example.com\|john@acme.com\|found@email.com\|\.claude/commands/" || true)
+    grep -v "example@\|noreply@\|sam@sgratzl\|README\|CLAUDE\|AGENTS\|package.json\|package-lock.json\|author\|LIKE '%@\|security-check.sh\|test@example.com\|john@acme.com\|found@email.com\|\.claude/commands/" | \
+    grep -viE "@example\.(com|org|net)|@[a-z0-9.-]+\.(test|invalid|localhost)" || true)
   if [ -n "$EMAILS" ]; then
     echo "❌ FAIL: Found email addresses"
     echo "$EMAILS"
@@ -162,9 +185,14 @@ echo ""
 # 9. IP Addresses Check
 # Exclude .svg files — path data has paired decimal coords (e.g., ".316 .078 .79 .611")
 # that get concatenated and falsely match the IP regex.
+#
+# Browser version strings are dotted quads too: a scraper's User-Agent carries
+# "Chrome/120.0.0.0", which is not an IP address by any reading. Drop lines that
+# are plainly a UA string rather than trying to out-clever the regex.
 echo "9️⃣  Checking for IP addresses..."
 IPS=$(git ls-files | grep -v '\.svg$' | xargs grep -E "\b([0-9]{1,3}\.){3}[0-9]{1,3}\b" 2>/dev/null | \
-  grep -v "127.0.0.1\|0.0.0.0\|localhost\|README\|example" || true)
+  grep -v "127.0.0.1\|0.0.0.0\|localhost\|README\|example" | \
+  grep -viE "user-agent|mozilla/[0-9]|applewebkit|chrome/[0-9]+\.|safari/[0-9]" || true)
 if [ -n "$IPS" ]; then
   echo "❌ FAIL: Found IP addresses"
   echo "$IPS"
@@ -180,7 +208,7 @@ echo ""
 # near-miss in 2026-04-28.
 echo "🔟  Checking research/ folder allowlist..."
 if [ "$PRIVATE_LOCAL" = "1" ]; then
-  echo "⏭️  SKIP: private-local repo (no remote)"
+  echo "⏭️  SKIP: private repo ($PRIVATE_REASON)"
 else
   RESEARCH_VIOLATIONS=$(git ls-files "research/*" 2>/dev/null | \
     grep -vE "^research/(kc-financial-institutions/|public/|\.gitkeep)" || true)

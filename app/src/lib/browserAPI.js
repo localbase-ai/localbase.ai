@@ -90,6 +90,12 @@ export const browserAPI = {
       });
       return res.json();
     },
+    // The sync above only starts the job and returns; poll this until status
+    // leaves 'running'. Syncs can take tens of minutes.
+    async getSyncStatus(sourceId) {
+      const res = await fetch(`${API_BASE}/api/datasources/${sourceId}/sync-status`);
+      return res.json();
+    },
     async toggleVizPin(id, pinned) {
       const res = await fetch(`${API_BASE}/api/viz/${id}/pin`, {
         method: 'POST',

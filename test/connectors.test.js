@@ -128,6 +128,28 @@ describe('Environment Variable Saving', () => {
     assert.strictEqual(res.data.success, true);
   });
 
+  it('keeps comments, blank lines and order when saving', async () => {
+    // The snapshot/restore above puts the real file back afterwards.
+    const original = '# my notes\nKEEP_ME=1\n\n# section two\nTEST_VAR=old\n';
+    writeFileSync(envPath, original);
+    const res = await request('/api/env/save', {
+      method: 'POST',
+      body: { vars: { TEST_VAR: 'new', TEST_VAR_ADDED: 'x' } }
+    });
+    assert.strictEqual(res.status, 200);
+    assert.strictEqual(readFileSync(envPath, 'utf-8'), '# my notes\nKEEP_ME=1\n\n# section two\nTEST_VAR=new\nTEST_VAR_ADDED=x\n');
+  });
+
+  it('writes nothing when any value is invalid', async () => {
+    writeFileSync(envPath, 'TEST_VAR=untouched\n');
+    const res = await request('/api/env/save', {
+      method: 'POST',
+      body: { vars: { TEST_VAR: 'changed', BAD: 'line\nbreak' } }
+    });
+    assert.strictEqual(res.status, 400);
+    assert.strictEqual(readFileSync(envPath, 'utf-8'), 'TEST_VAR=untouched\n');
+  });
+
 });
 
 // ============================================================================

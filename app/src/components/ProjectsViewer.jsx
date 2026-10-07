@@ -1,17 +1,11 @@
 import { useState, useEffect } from 'react'
+import { vizUrl, isVizMessage, VIZ_SANDBOX } from '@/lib/vizOrigin'
 import { FolderKanban, Presentation, Bot, Play, X, ChevronRight } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
 
 // Helper to build viz URLs (no timestamp to prevent iframe reload on re-render)
-const buildVizUrl = (vizPath) => {
-  const isBrowserMode = !window.electronAPI?.terminal
-  const path = vizPath.replace(/^\//, '')
-  if (isBrowserMode) {
-    return `/${path}`
-  }
-  return `localbase://${path}`
-}
+const buildVizUrl = (vizPath) => vizUrl(vizPath)
 
 export default function ProjectsViewer({ initialProjectId, initialVizId }) {
   const [presentationProjects, setPresentationProjects] = useState([])
@@ -64,6 +58,8 @@ export default function ProjectsViewer({ initialProjectId, initialVizId }) {
   // Listen for viz:select from project iframe - update URL instead of switching tabs
   useEffect(() => {
     const handleMessage = (e) => {
+      // Vizzes are served from this origin; any other sender is a page that framed us.
+      if (!isVizMessage(e)) return
       if (e.data?.type === 'viz:select' && e.data?.vizId && selectedProject) {
         setCurrentVizId(e.data.vizId)
         // Update URL with both project and viz IDs
@@ -141,6 +137,8 @@ export default function ProjectsViewer({ initialProjectId, initialVizId }) {
             src={buildVizUrl(`viz/projects/${selectedProject}/index.html`)}
             className="w-full h-full border-0"
             title={selectedProject}
+            sandbox={VIZ_SANDBOX}
+            allow="fullscreen; clipboard-write"
           />
         </div>
       </div>

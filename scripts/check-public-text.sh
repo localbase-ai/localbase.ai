@@ -41,7 +41,7 @@ echo "1️⃣  Checking for business / instance names..."
 if [ -z "$BANNED_PRIVATE_TERMS" ]; then
   echo "⏭️  SKIP: no private-term list configured"
 else
-  HITS=$(grep -inE "$BANNED_PRIVATE_TERMS" "$FILE" 2>/dev/null || true)
+  HITS=$(grep -inE "$BANNED_PRIVATE_TERMS_RE" "$FILE" 2>/dev/null || true)
   if [ -n "$HITS" ]; then
     echo "❌ FAIL: Found private terms:"
     echo "$HITS" | sed 's/^/    /'

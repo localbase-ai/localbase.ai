@@ -48,7 +48,7 @@
       "QUICKBOOKS_REFRESH_TOKEN",
       "QUICKBOOKS_COMPANY_ID"
     ],
-    "oauth_url": "https://benevolent-malabi-37c3f8.netlify.app/.netlify/functions/oauth",
+    "setup": "Bring your own Intuit developer app; see connectors/quickbooks/README.md",
     "rate_limits": "100 requests/min, 5000 requests/day"
   }
 }

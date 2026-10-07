@@ -13,7 +13,7 @@ import { createRequire } from 'module';
 // Enable require() for CommonJS modules
 const require = createRequire(import.meta.url);
 import { VizRegistry } from '../viz/registry.js';
-import { unlinkSync, existsSync, readFileSync, readdirSync, statSync, writeFileSync, mkdirSync } from 'fs';
+import { unlinkSync, existsSync, readFileSync, readdirSync, statSync, writeFileSync, mkdirSync, chmodSync } from 'fs';
 import { homedir } from 'os';
 import cors from 'cors';
 import { spawnSync } from 'child_process';
@@ -25,10 +25,11 @@ import {
   isLocalBaseWorkspace,
   localbaseRoot
 } from './workspace-config.js';
-import { API_PORT, ALLOWED_ORIGINS } from '../ports.js';
+import { API_PORT, APP_PORT, ALLOWED_ORIGINS } from '../ports.js';
 // import { CompanyCamConnector } from '../../connectors/companycam/index.js'; // REMOVED
 import Database from 'better-sqlite3';
-import { isAllowedReadOnlySqlQuery, isWithinDirectory, resolveWorkspaceDatabasePath } from './security-utils.js';
+import { updateEnvContent } from './env-file.js';
+import { isAllowedReadOnlySqlQuery, isLoopbackHost, isSensitiveWorkspacePath, isWithinDirectory, resolveWorkspaceDatabasePath } from './security-utils.js';
 
 const __filename = fileURLToPath(import.meta.url);
 
@@ -120,6 +121,17 @@ function persistLocalDataSources(workspacePath, data) {
   writeFileSync(local, JSON.stringify(data, null, 2));
   return local;
 }
+
+/**
+ * In-flight and finished sync runs, keyed by data source id. Populated by
+ * POST /api/datasources/:id/sync and read by its sync-status companion.
+ * Deliberately in memory only: a restart loses history, which is fine because
+ * the child processes die with the server anyway.
+ */
+const syncJobs = new Map();
+
+/** Cap on retained stdout/stderr per sync job (bytes). */
+const SYNC_OUTPUT_LIMIT = 64 * 1024;
 
 /**
  * Format bytes to human readable string
@@ -318,6 +330,26 @@ app.use((req, res, next) => {
   next();
 });
 
+// API responses are data, never pages. If one is ever opened as a document —
+// e.g. a viz navigating its frame to the app's /api proxy to land on the app's
+// origin — the sandbox gives it an opaque origin, so it can't touch the app or
+// pass the write-origin check. fetch() callers are unaffected.
+app.use('/api', (req, res, next) => {
+  res.set('Content-Security-Policy', 'sandbox allow-scripts allow-popups');
+  next();
+});
+
+// DNS-rebinding guard. The loopback-socket check above can't tell a rebound
+// evil.example (resolving to 127.0.0.1) from the real app; the Host header can.
+// Skipped with LOCALBASE_ALLOW_REMOTE, where clients reach us by LAN name/IP.
+app.use((req, res, next) => {
+  if (ALLOW_REMOTE || isLoopbackHost(req.headers.host)) {
+    return next();
+  }
+  console.warn(`⚠️  Blocked request with non-local Host header: ${req.headers.host}`);
+  return res.status(403).json({ error: 'Invalid Host header' });
+});
+
 // Rate limiting - prevent abuse
 const rateLimitMap = new Map();
 const RATE_LIMIT_WINDOW = 60 * 1000; // 1 minute
@@ -374,12 +406,16 @@ app.use((req, res, next) => {
 // clients (curl, tests, Node scripts) send neither and pass through — they're
 // already gated by the localhost-only IP check above.
 const MUTATING_METHODS = new Set(['POST', 'PUT', 'PATCH', 'DELETE']);
+// Writes come from the app (APP_PORT) only. Vizzes are served from this
+// server's own origin, so excluding API_PORT means a viz — AI-written, showing
+// data outsiders can influence — can read but never change anything.
+const mutationOrigins = allowedOrigins.filter(o => !o.endsWith(`:${API_PORT}`));
 app.use((req, res, next) => {
   if (!MUTATING_METHODS.has(req.method)) return next();
 
   const origin = req.headers.origin;
   if (origin) {
-    if (!allowedOrigins.includes(origin)) {
+    if (!mutationOrigins.includes(origin)) {
       console.warn(`⚠️  Blocked ${req.method} ${req.path} — disallowed Origin: ${origin}`);
       return res.status(403).json({ error: 'Invalid Origin' });
     }
@@ -388,7 +424,7 @@ app.use((req, res, next) => {
 
   const referer = req.headers.referer;
   if (referer) {
-    const refererOk = allowedOrigins.some(o => referer === o || referer.startsWith(o + '/'));
+    const refererOk = mutationOrigins.some(o => referer === o || referer.startsWith(o + '/'));
     if (!refererOk) {
       console.warn(`⚠️  Blocked ${req.method} ${req.path} — disallowed Referer: ${referer}`);
       return res.status(403).json({ error: 'Invalid Referer' });
@@ -414,6 +450,14 @@ app.use((req, res, next) => {
   // Block sensitive files
   const filename = path.split('/').pop();
   if (SENSITIVE_FILES.some(f => filename === f || path.includes(`/${f}`))) {
+    return res.status(403).json({ error: 'Access to sensitive files not allowed' });
+  }
+
+  // /data and /projects are served straight from the workspace, so their URL
+  // paths are workspace-relative — which is what keeps connector OAuth tokens
+  // (data/<connector>/tokens.json) and the preview password (data/preview/)
+  // from being downloadable.
+  if (/^\/(data|projects)(\/|$)/i.test(path) && isSensitiveWorkspacePath(path)) {
     return res.status(403).json({ error: 'Access to sensitive files not allowed' });
   }
 
@@ -1544,47 +1588,11 @@ app.post('/api/env/save', (req, res) => {
 
     const envPath = join(currentWorkspace, 'env.local');
 
-    // Read existing env.local content
-    let existingContent = '';
-    if (existsSync(envPath)) {
-      existingContent = readFileSync(envPath, 'utf-8');
-    }
-
-    // Parse existing vars (simple KEY=value format)
-    const existingVars = {};
-    existingContent.split('\n').forEach(line => {
-      const trimmed = line.trim();
-      if (trimmed && !trimmed.startsWith('#')) {
-        const eqIndex = trimmed.indexOf('=');
-        if (eqIndex > 0) {
-          const key = trimmed.substring(0, eqIndex);
-          const value = trimmed.substring(eqIndex + 1);
-          existingVars[key] = value;
-        }
-      }
-    });
-
-    let updatedCount = 0;
-    let deletedCount = 0;
-
-    // Merge new vars (overwrite existing)
+    // Validate everything before touching the file.
     try {
       Object.entries(vars).forEach(([key, value]) => {
         validateEnvKey(key);
-
-        if (value === undefined || value === '') {
-          return;
-        }
-
-        if (value === null) {
-          delete existingVars[key];
-          deletedCount++;
-          return;
-        }
-
-        validateEnvValue(value);
-        existingVars[key] = value;
-        updatedCount++;
+        if (value !== undefined && value !== '' && value !== null) validateEnvValue(value);
       });
     } catch (validationError) {
       if (validationError.code === 'INVALID_ENV_KEY' || validationError.code === 'INVALID_ENV_VALUE') {
@@ -1596,14 +1604,13 @@ app.post('/api/env/save', (req, res) => {
       throw validationError;
     }
 
-    // Rebuild env.local content
-    let newContent = '# LocalBase environment variables\n';
-    newContent += '# Do not commit this file to version control\n\n';
-    Object.entries(existingVars).forEach(([key, value]) => {
-      newContent += `${key}=${value}\n`;
-    });
+    // Edit in place: comments, blank lines and ordering survive (env-file.js).
+    const existingContent = existsSync(envPath) ? readFileSync(envPath, 'utf-8') : '';
+    const { content: newContent, updated: updatedCount, deleted: deletedCount } = updateEnvContent(existingContent, vars);
 
-    writeFileSync(envPath, newContent);
+    // Owner-only: env.local holds API keys. mode only applies on create, so chmod too.
+    writeFileSync(envPath, newContent, { mode: 0o600 });
+    chmodSync(envPath, 0o600);
     console.log(`💾 Saved ${Object.keys(vars).length} env vars to ${envPath}`);
 
     res.json({
@@ -1687,40 +1694,104 @@ app.post('/api/datasources/:id/sync', async (req, res) => {
       return res.status(404).json({ success: false, error: `Sync script not found: ${scriptPath}` });
     }
 
+    // Refuse to start a second run of the same source rather than racing it.
+    const running = syncJobs.get(id);
+    if (running && running.status === 'running') {
+      return res.status(409).json({
+        success: false,
+        error: `Sync for '${id}' is already running (started ${running.startedAt})`,
+        status: 'running'
+      });
+    }
+
     console.log(`🔄 Running sync for ${id}: node ${scriptPath}`);
 
-    // Security: Use spawnSync with array args to prevent shell injection
-    const { spawnSync } = await import('child_process');
-    const result = spawnSync('node', [fullScriptPath], {
+    // Security: array args, never a shell string, so the path cannot inject.
+    //
+    // spawn, NOT spawnSync: spawnSync blocks Node's single event loop for the
+    // whole run, so the entire server — every other endpoint, every viz fetch —
+    // stops answering until the child exits. It also forced a timeout ceiling,
+    // and real syncs run well past any sane ceiling (a large connector takes ~40
+    // minutes), so those syncs could never finish from the UI at all.
+    const { spawn } = await import('child_process');
+    const child = spawn('node', [fullScriptPath], {
       cwd: currentWorkspace,
-      encoding: 'utf-8',
-      timeout: 300000, // 5 minute timeout
+      stdio: ['ignore', 'pipe', 'pipe'],
       env: {
         PATH: process.env.PATH,
         HOME: process.env.HOME,
         NODE_ENV: process.env.NODE_ENV
-        // Only pass safe env vars, not secrets
+        // Only pass safe env vars, not secrets. Connectors read their own
+        // credentials from env.local via dotenv, so this does not starve them.
       }
     });
 
-    if (result.error) {
-      throw result.error;
-    }
+    const job = {
+      id,
+      status: 'running',
+      startedAt: new Date().toISOString(),
+      finishedAt: null,
+      exitCode: null,
+      error: null,
+      lastSync: null,
+      output: ''
+    };
+    syncJobs.set(id, job);
 
-    if (result.status !== 0) {
-      throw new Error(result.stderr || `Process exited with code ${result.status}`);
-    }
+    // Keep only the tail. A long sync can emit megabytes of progress logs and
+    // this map lives for the life of the process.
+    const appendOutput = (buf) => {
+      job.output = (job.output + buf.toString()).slice(-SYNC_OUTPUT_LIMIT);
+    };
+    child.stdout.on('data', appendOutput);
+    child.stderr.on('data', appendOutput);
 
-    const output = result.stdout;
-    console.log(`✅ Sync completed for ${id}`);
+    child.on('error', (err) => {
+      job.status = 'failed';
+      job.finishedAt = new Date().toISOString();
+      job.error = err.message;
+      console.error(`❌ Sync for ${id} failed to start:`, err.message);
+    });
 
-    // Persist last_sync only to the ignored local runtime file
-    const today = new Date().toISOString().split('T')[0]; // YYYY-MM-DD
-    dataSourcesData.sources[id].last_sync = today;
-    const localDataSourcesFile = persistLocalDataSources(currentWorkspace, dataSourcesData);
-    console.log(`📅 Updated last_sync for ${id} to ${today} in ${localDataSourcesFile}`);
+    child.on('close', (code) => {
+      // 'error' already settled this job; a close still follows a spawn failure.
+      if (job.status !== 'running') return;
 
-    res.json({ success: true, output, last_sync: today });
+      job.finishedAt = new Date().toISOString();
+      job.exitCode = code;
+
+      if (code !== 0) {
+        job.status = 'failed';
+        job.error = `Process exited with code ${code}`;
+        console.error(`❌ Sync failed for ${id} (exit ${code})`);
+        return;
+      }
+
+      job.status = 'completed';
+      console.log(`✅ Sync completed for ${id}`);
+
+      // Re-read the config instead of reusing the copy captured when the
+      // request arrived. The run is long enough that another source's sync can
+      // finish in the meantime, and writing back the stale object would erase
+      // the last_sync it just recorded.
+      try {
+        const { filePath, data: fresh } = loadDataSources(currentWorkspace);
+        if (!filePath || !fresh.sources?.[id]) {
+          console.warn(`⚠️  Sync for ${id} finished but its config entry is gone — skipping last_sync`);
+          return;
+        }
+        const today = new Date().toISOString().split('T')[0]; // YYYY-MM-DD
+        fresh.sources[id].last_sync = today;
+        const localDataSourcesFile = persistLocalDataSources(currentWorkspace, fresh);
+        job.lastSync = today;
+        console.log(`📅 Updated last_sync for ${id} to ${today} in ${localDataSourcesFile}`);
+      } catch (err) {
+        console.error(`⚠️  Sync for ${id} succeeded but last_sync could not be written:`, err.message);
+      }
+    });
+
+    // Hand back immediately; the client polls the status endpoint below.
+    res.status(202).json({ success: true, status: 'started', id, startedAt: job.startedAt });
   } catch (error) {
     console.error('Sync error:', error);
     res.status(500).json({
@@ -1729,6 +1800,19 @@ app.post('/api/datasources/:id/sync', async (req, res) => {
       output: ''
     });
   }
+});
+
+/**
+ * GET /api/datasources/:id/sync-status
+ * Progress for a sync started by the endpoint above. Jobs are held in memory,
+ * so a server restart forgets them and the source reports as idle again.
+ */
+app.get('/api/datasources/:id/sync-status', (req, res) => {
+  const job = syncJobs.get(req.params.id);
+  if (!job) {
+    return res.json({ success: true, status: 'idle' });
+  }
+  res.json({ success: true, ...job });
 });
 
 /**
@@ -1808,7 +1892,7 @@ app.get('/api/workspace/file', (req, res) => {
 
     // Security: Block sensitive files
     const filename = relativePath.split('/').pop();
-    if (SENSITIVE_FILES.some(f => filename === f || relativePath.includes(f))) {
+    if (SENSITIVE_FILES.some(f => filename === f || relativePath.includes(f)) || isSensitiveWorkspacePath(relativePath)) {
       return res.status(403).json({
         success: false,
         error: 'Access to sensitive files not allowed'
@@ -1938,14 +2022,33 @@ app.get('/health', (req, res) => {
  * Serve viz files from workspace viz/ directory
  * Dynamic middleware that uses current vizDir (updates on workspace switch)
  */
+// Only the app may frame a viz. Replaces the blanket SAMEORIGIN, which would
+// block the app (a different port, so a different origin) from showing it.
+const VIZ_FRAME_ANCESTORS = `frame-ancestors 'self' ${allowedOrigins.filter(o => o.endsWith(`:${APP_PORT}`)).join(' ')}`;
+const VIZ_BRIDGE_TAG = `<script>${readFileSync(new URL('./viz-bridge.js', import.meta.url), 'utf8')}</script>`;
+const setVizHeaders = (res) => {
+  res.set('Cache-Control', 'no-cache, no-store, must-revalidate');
+  res.removeHeader('X-Frame-Options');
+  res.set('Content-Security-Policy', VIZ_FRAME_ANCESTORS);
+};
+
+/**
+ * Viz HTML gets the key/scroll bridge injected (see viz-bridge.js); everything
+ * else under /viz is served as-is.
+ */
 app.use('/viz', (req, res, next) => {
-  express.static(vizDir, {
-    setHeaders: (res, path) => {
-      res.set('Cache-Control', 'no-cache, no-store, must-revalidate');
-      // Allow embedding in iframes (needed for Vite dev server on different port)
-      res.removeHeader('X-Frame-Options');
-    }
-  })(req, res, next);
+  if (req.method !== 'GET' || !/\.html?$/i.test(req.path)) return next();
+  let file;
+  try { file = join(vizDir, decodeURIComponent(req.path)); } catch { return res.sendStatus(400); }
+  if (!isWithinDirectory(file, vizDir) || !existsSync(file) || !statSync(file).isFile()) return next();
+  const html = readFileSync(file, 'utf8');
+  const at = html.search(/<\/head>/i);
+  setVizHeaders(res);
+  res.type('html').send(at === -1 ? VIZ_BRIDGE_TAG + html : html.slice(0, at) + VIZ_BRIDGE_TAG + html.slice(at));
+});
+
+app.use('/viz', (req, res, next) => {
+  express.static(vizDir, { setHeaders: setVizHeaders })(req, res, next);
 });
 
 /**

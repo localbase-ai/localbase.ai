@@ -304,13 +304,15 @@ Build the app, choose a strong workspace password, and start the preview server:
 npm run build
 node tools/preview/server.js \
   --workspace /absolute/path/to/workspace \
-  --credentials /absolute/path/to/workspace/data/preview/auth.json \
+  --credentials ~/.localbase/preview/my-business.json \
   --port 9232
 ```
 
 The preview server authenticates every data and visualization read, blocks operator
 mutations, refuses path traversal, sets secure session cookies behind HTTPS, and
-serves the app shell so the login appears inside the LocalBase Home screen. Put it
+serves the app shell so the login appears inside the LocalBase Home screen. Keep
+the credentials file outside the workspace (add `--init` once to generate it) so
+it is never inside a folder LocalBase serves. Put it
 behind Cloudflare Tunnel, an SSH tunnel, or a private VPN. It is intentionally
 read-only; use Claude Code or a terminal for file edits.
 

@@ -15,8 +15,7 @@ localbase.ai/
 │   ├── server/         # Express API server
 │   ├── mcp/            # MCP server for Claude
 │   ├── viz/            # Visualization utilities
-│   ├── ocr/            # OCR utilities
-│   └── surge/          # Deploy utilities
+│   └── ocr/            # OCR utilities
 ├── viz/              # Visualization registry (runtime)
 ├── data/             # SQLite databases (runtime, gitignored)
 ├── scripts/          # Utility scripts

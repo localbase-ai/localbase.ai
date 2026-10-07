@@ -82,7 +82,7 @@ viz/*.html
 connectors/**/cache/
 connectors/**/.cache/
 
-# Clay connector — contains workspace/workbook/table IDs specific to this Clay org
+# Clay connector — holds workspace/workbook/table IDs, so it stays local
 connectors/clay/
 
 # Python (if using Python scripts)
@@ -123,10 +123,6 @@ mcp/server.log
 # Temp planning docs and test assets
 .pricing.md
 app/assets/test-*.gif
-app/assets/vince-*.gif
-
-# Electron temp files
-electron-app/tmp/
 
 # OAuth tokens and credentials
 connectors/**/gmail_token.json
@@ -154,9 +150,6 @@ scripts/lib/banned-terms.local.sh
 !.claude/commands/research.md
 !.claude/commands/start.md
 
-# The `localbase` CLI and its Ink TUI, removed from the framework in favour of
-# `scripts/start.sh`. Kept on disk (and only here) because it still runs — it
-# imports tools/server/workspace-config.js by relative path, so it only works
-# from this location. Backup copy: ~/Localbase/.localbase-cli-backup
+# Local-only CLI, not part of the framework (use scripts/start.sh)
 bin/
 tools/cli/

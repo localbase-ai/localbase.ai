@@ -12,6 +12,7 @@ import assert from 'node:assert';
 import { readFileSync, readdirSync, statSync, existsSync } from 'fs';
 import { join, dirname, relative } from 'path';
 import { fileURLToPath } from 'url';
+import { execFileSync } from 'child_process';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const ROOT = join(__dirname, '..');
@@ -56,7 +57,21 @@ function* walk(dir) {
   }
 }
 
+// Only what the repo ships. Gitignored local trees (tools/cli is kept on disk
+// but deliberately untracked) are not framework source, and failing the
+// pre-commit hook on them blocks every commit for a file no commit can touch.
+// Falls back to scanning everything when git is unavailable (e.g. a tarball).
+function trackedFiles() {
+  try {
+    const out = execFileSync('git', ['ls-files', '-z'], { cwd: ROOT, encoding: 'utf8' });
+    return new Set(out.split('\0').filter(Boolean).map(f => join(ROOT, f)));
+  } catch {
+    return null;
+  }
+}
+
 function collectFiles() {
+  const tracked = trackedFiles();
   const files = [];
   for (const d of SCAN_DIRS) {
     const full = join(ROOT, d);
@@ -66,7 +81,7 @@ function collectFiles() {
     const full = join(ROOT, f);
     if (existsSync(full)) files.push(full);
   }
-  return files;
+  return tracked ? files.filter(f => tracked.has(f)) : files;
 }
 
 describe('no hardcoded dev ports', () => {
@@ -112,10 +127,22 @@ describe('the port config is actually wired up', () => {
     assert.match(src, /target: API_URL/, 'proxy must target API_URL');
   });
 
+  // Security: anything proxied here is served on the app's own origin. Viz
+  // files, /data and /projects must only ever come from the API origin, or a
+  // viz can navigate its frame onto the app's origin and act as the app.
+  it('never proxies viz files, /data or /projects onto the app origin', () => {
+    const src = read('app/vite.config.js');
+    const routes = [...src.matchAll(/'(\/[a-z]+)':\s*\{/g)].map((m) => m[1]);
+    assert.ok(!routes.includes('/data'), '/data must not be proxied');
+    assert.ok(!routes.includes('/projects'), '/projects must not be proxied');
+    const viz = src.slice(src.indexOf("'/viz':"), src.indexOf('},', src.indexOf("'/viz':")));
+    assert.match(viz, /bypass:\s*\(\)\s*=>\s*'\/index\.html'/, '/viz must always answer with the app shell');
+  });
+
   it('every vite proxy route points at the API', () => {
     const src = read('app/vite.config.js');
     const routes = [...src.matchAll(/'(\/[a-z]+)':\s*\{/g)].map((m) => m[1]);
-    assert.ok(routes.length >= 5, `expected the proxy routes, found ${routes.length}`);
+    assert.ok(routes.length >= 3, `expected the proxy routes, found ${routes.length}`);
     const targets = [...src.matchAll(/target:\s*([A-Za-z_$][\w$]*)/g)].map((m) => m[1]);
     assert.strictEqual(targets.length, routes.length, 'every proxy route needs a target');
     assert.ok(targets.every((t) => t === 'API_URL'), `all targets must be API_URL, got ${targets}`);

@@ -28,25 +28,25 @@ fi
 # Install root dependencies if needed
 if [ ! -d "node_modules" ]; then
     echo "📦 Installing dependencies..."
-    npm install --cache /tmp/npm-cache
+    npm install
 fi
 
 # Check if package-lock changed
 if [ "package.json" -nt "node_modules/.package-lock.json" ] 2>/dev/null; then
     echo "📦 Updating dependencies..."
-    npm install --cache /tmp/npm-cache
+    npm install
 fi
 
 # Install app dependencies if needed
 if [ ! -d "app/node_modules" ]; then
     echo "📦 Installing app dependencies..."
-    (cd app && npm install --cache /tmp/npm-cache)
+    (cd app && npm install)
 fi
 
 # Check if app package-lock changed
 if [ "app/package.json" -nt "app/node_modules/.package-lock.json" ] 2>/dev/null; then
     echo "📦 Updating app dependencies..."
-    (cd app && npm install --cache /tmp/npm-cache)
+    (cd app && npm install)
 fi
 
 # Check if ports are available

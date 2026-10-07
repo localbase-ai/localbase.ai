@@ -235,44 +235,81 @@ export default function Overview({ onNavigateHome }) {
     window.dispatchEvent(new CustomEvent('single-workspace-mode-changed', { detail: enabled }))
   }
 
+  // Re-read the source list and restore the stoplight ordering.
+  const reloadDataSources = async () => {
+    if (!window.electronAPI?.api?.getDataSources) return
+    const sourcesResult = await window.electronAPI.api.getDataSources()
+    if (!sourcesResult.success || !sourcesResult.sources) return
+
+    const sourcesArray = Object.entries(sourcesResult.sources).map(([id, data]) => ({
+      id,
+      ...data
+    }))
+
+    // Sort by: 1) automated first, 2) stoplight order (green, yellow, red)
+    sourcesArray.sort((a, b) => {
+      // Automated sources always on top
+      if (a.type === 'automated' && b.type !== 'automated') return -1
+      if (a.type !== 'automated' && b.type === 'automated') return 1
+
+      // Within same type, sort by sync freshness (green, yellow, red)
+      const aPriority = getSyncSortPriority(a.last_sync)
+      const bPriority = getSyncSortPriority(b.last_sync)
+      return aPriority - bPriority
+    })
+
+    setDataSources(sourcesArray)
+  }
+
+  // Poll the sync-status endpoint until the job leaves 'running'. A server
+  // restart drops the job and reports 'idle', which we treat as finished so the
+  // spinner can never wedge permanently.
+  const pollSyncUntilDone = async (sourceId, intervalMs = 3000) => {
+    for (;;) {
+      await new Promise(resolve => setTimeout(resolve, intervalMs))
+
+      let status
+      try {
+        status = await window.electronAPI.api.getSyncStatus(sourceId)
+      } catch (err) {
+        // Transient fetch failure (server busy or momentarily down) — keep waiting.
+        continue
+      }
+
+      if (!status || status.status === 'running') continue
+      if (status.status === 'idle') {
+        return { status: 'failed', error: 'Sync job was lost (server restarted?)' }
+      }
+      return status
+    }
+  }
+
   const handleSyncSource = async (sourceId) => {
     setSyncingSource(sourceId)
     setSyncStatus(prev => ({ ...prev, [sourceId]: null })) // Clear previous status
 
     try {
       if (window.electronAPI?.api?.syncDataSource) {
+        // This only *starts* the job — it returns as soon as the child is
+        // spawned, so a success here means "launched", not "finished".
         const result = await window.electronAPI.api.syncDataSource(sourceId)
 
-        if (result.success) {
+        if (!result.success) {
+          console.error(`Sync failed to start for ${sourceId}:`, result.error, result.output)
+          setSyncStatus(prev => ({ ...prev, [sourceId]: 'error' }))
+          return
+        }
+
+        // Wait for the job to actually finish. Syncs run long — a large
+        // connector takes ~40 minutes — so there is no overall deadline here;
+        // the spinner tracks the real run.
+        const final = await pollSyncUntilDone(sourceId)
+
+        if (final.status === 'completed') {
           setSyncStatus(prev => ({ ...prev, [sourceId]: 'success' }))
-          // Reload data sources to show updated timestamp
-          setTimeout(async () => {
-            if (window.electronAPI?.api?.getDataSources) {
-              const sourcesResult = await window.electronAPI.api.getDataSources()
-              if (sourcesResult.success && sourcesResult.sources) {
-                const sourcesArray = Object.entries(sourcesResult.sources).map(([id, data]) => ({
-                  id,
-                  ...data
-                }))
-
-                // Sort by: 1) automated first, 2) stoplight order (green, yellow, red)
-                sourcesArray.sort((a, b) => {
-                  // Automated sources always on top
-                  if (a.type === 'automated' && b.type !== 'automated') return -1
-                  if (a.type !== 'automated' && b.type === 'automated') return 1
-
-                  // Within same type, sort by sync freshness (green, yellow, red)
-                  const aPriority = getSyncSortPriority(a.last_sync)
-                  const bPriority = getSyncSortPriority(b.last_sync)
-                  return aPriority - bPriority
-                })
-
-                setDataSources(sourcesArray)
-              }
-            }
-          }, 500)
+          await reloadDataSources()
         } else {
-          console.error(`Sync failed for ${sourceId}:`, result.error, result.output)
+          console.error(`Sync failed for ${sourceId}:`, final.error, final.output)
           setSyncStatus(prev => ({ ...prev, [sourceId]: 'error' }))
         }
       }
@@ -304,10 +341,12 @@ export default function Overview({ onNavigateHome }) {
       name: 'QuickBooks',
       description: 'Invoices, customers, and financial data',
       icon: '💚',
+      // Bring your own Intuit app: tokens are issued to your app and refreshed
+      // with your client secret, so LocalBase never brokers the connection.
       authType: 'oauth',
-      oauthUrl: 'https://benevolent-malabi-37c3f8.netlify.app/.netlify/functions/oauth',
-      envVars: ['QUICKBOOKS_ACCESS_TOKEN', 'QUICKBOOKS_REFRESH_TOKEN', 'QUICKBOOKS_COMPANY_ID'],
-      docsUrl: 'https://developer.intuit.com/'
+      envVars: ['QUICKBOOKS_CLIENT_ID', 'QUICKBOOKS_CLIENT_SECRET', 'QUICKBOOKS_ACCESS_TOKEN', 'QUICKBOOKS_REFRESH_TOKEN', 'QUICKBOOKS_COMPANY_ID'],
+      docsUrl: 'https://developer.intuit.com/app/developer/dashboard',
+      playgroundUrl: 'https://developer.intuit.com/app/developer/playground'
     }
   ]
 
@@ -637,24 +676,33 @@ export default function Overview({ onNavigateHome }) {
               </CardHeader>
               <CardContent className="space-y-6">
                 {template.authType === 'oauth' ? (
-                  /* OAuth Flow (QuickBooks) */
+                  /* OAuth with your own app (QuickBooks) */
                   <>
                     <div className="space-y-2">
                       <div className="flex items-center gap-2">
                         <div className="h-6 w-6 rounded-full bg-green-400 text-black flex items-center justify-center text-sm font-bold">1</div>
-                        <h3 className="font-medium">Connect to {template.name}</h3>
+                        <h3 className="font-medium">Create your own {template.name} developer app</h3>
                       </div>
                       <div className="ml-8 space-y-3">
                         <p className="text-sm text-muted-foreground">
-                          Click the button below to connect your {template.name} account. You'll be redirected to {template.name} to authorize access.
+                          LocalBase connects through an app you own, so your data stays between you and {template.name}. Create an app in the Intuit developer portal with the Accounting scope, then copy its Client ID and Client Secret. See <code className="bg-muted px-1 py-0.5 rounded">connectors/quickbooks/README.md</code> for the full steps.
                         </p>
-                        <Button
-                          onClick={() => window.open(template.oauthUrl, '_blank')}
-                          className="bg-green-400 text-black hover:bg-green-500"
-                        >
-                          <ExternalLink className="h-4 w-4 mr-2" />
-                          Connect to {template.name}
-                        </Button>
+                        <div className="flex flex-wrap gap-2">
+                          <Button
+                            onClick={() => window.open(template.docsUrl, '_blank', 'noopener')}
+                            className="bg-green-400 text-black hover:bg-green-500"
+                          >
+                            <ExternalLink className="h-4 w-4 mr-2" />
+                            Intuit developer portal
+                          </Button>
+                          <Button
+                            variant="outline"
+                            onClick={() => window.open(template.playgroundUrl, '_blank', 'noopener')}
+                          >
+                            <ExternalLink className="h-4 w-4 mr-2" />
+                            OAuth Playground (get tokens)
+                          </Button>
+                        </div>
                       </div>
                     </div>
 
@@ -665,7 +713,7 @@ export default function Overview({ onNavigateHome }) {
                       </div>
                       <div className="ml-8 space-y-3">
                         <p className="text-sm text-muted-foreground">
-                          After authorizing, copy the credentials and paste them below:
+                          In the OAuth Playground, pick your app, authorize your company, and paste your app's keys and the tokens it returns below:
                         </p>
                         {template.envVars.map(varName => (
                           <div key={varName} className="space-y-1">

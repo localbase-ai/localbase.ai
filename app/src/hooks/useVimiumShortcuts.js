@@ -1,4 +1,5 @@
 import { useEffect } from 'react'
+import { VIZ_ORIGIN } from '@/lib/vizOrigin'
 
 /**
  * Vimium-style keyboard shortcuts
@@ -164,9 +165,58 @@ export function useVimiumShortcuts() {
       })
     }
 
-    const handleKeyPress = (e) => {
+    // Where j/k/d/u/gg/G should scroll. A key bridged from a viz iframe
+    // scrolls that iframe's own document. Otherwise take the first container
+    // that actually overflows: on a viz page the shell's .overflow-auto wrapper
+    // is exactly the iframe's height, so it has nothing to scroll and the
+    // content that does scroll lives inside the iframe.
+    //
+    // A viz on another origin (the operator app loads them from the API port)
+    // can't be scrolled from here, so it gets a stand-in that asks the viz to
+    // scroll itself — see tools/server/viz-bridge.js.
+    const remoteScrollTarget = (win) => ({
+      remote: true,
+      scrollHeight: Number.MAX_SAFE_INTEGER,
+      scrollBy: ({ top }) => win.postMessage({ type: 'lb:scroll', by: top }, VIZ_ORIGIN),
+      scrollTo: ({ top }) => win.postMessage({ type: 'lb:scroll', to: top === 0 ? 'top' : 'bottom' }, VIZ_ORIGIN),
+    })
+
+    const findScrollTarget = (source) => {
+      if (source?.remote) return source
+      if (source) return source.scrollingElement || source.documentElement
+      const overflows = el => el.scrollHeight > el.clientHeight + 1 && el.getClientRects().length > 0
+      const container = [...document.querySelectorAll('.overflow-auto')].find(overflows)
+      if (container) return container
+      let crossOrigin = null
+      for (const frame of document.querySelectorAll('iframe')) {
+        const visible = frame.getClientRects().length > 0
+        let doc = null
+        try { doc = frame.contentDocument } catch { /* cross-origin */ }
+        if (!doc) {
+          if (visible && !crossOrigin && frame.contentWindow) crossOrigin = frame.contentWindow
+          continue
+        }
+        const el = doc.scrollingElement || doc.documentElement
+        if (el && visible && el.scrollHeight > el.clientHeight + 1) return el
+      }
+      if (crossOrigin) return remoteScrollTarget(crossOrigin)
+      return document.scrollingElement || document.documentElement
+    }
+
+    const handleKeyPress = (e, sourceDoc = null) => {
       // Don't handle Command/Ctrl+R - let App.jsx handle it
       if ((e.metaKey || e.ctrlKey) && e.key === 'r') {
+        return
+      }
+
+      // Modified keys belong to someone else: ⌘K focuses search in the viz
+      // gallery and in several vizzes, and must not also scroll up.
+      if (!linkHintsMode && (e.metaKey || e.ctrlKey || e.altKey)) {
+        return
+      }
+
+      // A viz that handled the key itself wins.
+      if (e.defaultPrevented) {
         return
       }
 
@@ -188,15 +238,22 @@ export function useVimiumShortcuts() {
       // Note: Terminal is handled separately via attachCustomKeyEventHandler
       if (e.target.tagName === 'INPUT' ||
           e.target.tagName === 'TEXTAREA' ||
+          e.target.tagName === 'SELECT' ||
           e.target.isContentEditable) {
+        return
+      }
+
+      // Link hints only label the shell's own elements, not what's inside a
+      // viz, so f/F from an iframe would hint everything except the page
+      // being looked at. Scroll and history keys still work from there.
+      if (sourceDoc && (e.key === 'f' || e.key === 'F')) {
         return
       }
 
       const scrollAmount = 120
       const halfPage = window.innerHeight
 
-      // Find the scrollable element (main content area)
-      const scrollableElement = document.querySelector('.overflow-auto') || document.documentElement
+      const scrollableElement = findScrollTarget(sourceDoc)
 
       // Handle Shift+F for link hints (new tab)
       if (e.shiftKey && e.key === 'F') {
@@ -278,29 +335,58 @@ export function useVimiumShortcuts() {
       }
     }
 
-    // Listen for link hint requests from iframes
-    const handleMessage = (event) => {
-      if (event.data?.type === 'SHOW_LINK_HINTS') {
-        showLinkHints(event.data.newTab)
-      } else if (event.data?.type === 'HIDE_LINK_HINTS') {
-        hideLinkHints()
-      } else if (event.data?.type === 'HINT_KEY_PRESS') {
-        handleHintInput(event.data.key)
-      } else if (event.data?.type === 'CLICK_HINT') {
-        const hint = hintElements.find(h => h.label === event.data.label)
-        if (hint) {
-          hideLinkHints()
-          hint.element.click()
-        }
+    // Once a viz iframe has focus (any click inside it), keydown fires in the
+    // iframe's window and never reaches this one. Vizzes are served from this
+    // origin, so listen inside each iframe and route keys back through the
+    // same handler. Every navigation of an iframe makes a new document, so
+    // re-attach on each load; the WeakSet stops double-binding one document.
+    const bridged = new WeakSet()
+    const bridgedListeners = []
+    const bridgeFrame = (frame) => {
+      let win = null, doc = null
+      try { win = frame.contentWindow; doc = frame.contentDocument } catch { return }
+      if (!win || !doc || bridged.has(doc)) return
+      bridged.add(doc)
+      // Bubble phase, so the viz's own handlers run first and can claim a key.
+      const listener = (e) => handleKeyPress(e, doc)
+      win.addEventListener('keydown', listener)
+      bridgedListeners.push([win, listener])
+    }
+    // Keys from a cross-origin viz arrive as lb:key messages from the bridge.
+    // Only the viz origin is trusted, and only when it differs from ours (in
+    // the same-origin preview, bridgeFrame above already sees the keys).
+    const BRIDGED_KEYS = new Set(['j', 'k', 'd', 'u', 'g', 'G'])
+    const handleBridgeMessage = (e) => {
+      if (VIZ_ORIGIN === window.location.origin || e.origin !== VIZ_ORIGIN) return
+      if (e.data?.type !== 'lb:key' || typeof e.data.key !== 'string' || !e.source) return
+      // A viz only gets to scroll itself — not drive history, reload, or type
+      // into link hints (which click app buttons).
+      if (linkHintsMode || !BRIDGED_KEYS.has(e.data.key)) return
+      const synthetic = {
+        key: e.data.key, shiftKey: !!e.data.shiftKey,
+        metaKey: false, ctrlKey: false, altKey: false, defaultPrevented: false,
+        target: { tagName: '' }, preventDefault: () => {},
       }
+      handleKeyPress(synthetic, remoteScrollTarget(e.source))
     }
 
+    // load doesn't bubble, but it does pass through document in capture phase.
+    const handleFrameLoad = (e) => {
+      if (e.target?.tagName === 'IFRAME') bridgeFrame(e.target)
+    }
+    document.querySelectorAll('iframe').forEach(bridgeFrame)
+
     window.addEventListener('keydown', handleKeyPress)
-    window.addEventListener('message', handleMessage)
+    window.addEventListener('message', handleBridgeMessage)
+    document.addEventListener('load', handleFrameLoad, true)
 
     return () => {
       window.removeEventListener('keydown', handleKeyPress)
-      window.removeEventListener('message', handleMessage)
+      window.removeEventListener('message', handleBridgeMessage)
+      document.removeEventListener('load', handleFrameLoad, true)
+      bridgedListeners.forEach(([win, listener]) => {
+        try { win.removeEventListener('keydown', listener) } catch { /* window gone */ }
+      })
       if (ggTimeout) clearTimeout(ggTimeout)
       hideLinkHints()
     }

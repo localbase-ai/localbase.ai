@@ -49,6 +49,51 @@ describe('SQL Injection Prevention', () => {
 // Path Traversal Tests
 // ============================================================================
 
+describe('DNS Rebinding Protection', () => {
+
+  it('rejects a request whose Host is not a loopback name', async () => {
+    const res = await request('/api/workspaces', { headers: { host: 'evil.example:9220' } });
+    assert.strictEqual(res.status, 403);
+  });
+
+  it('rejects rebinding requests for raw data files', async () => {
+    const res = await request('/data/anything.db', { headers: { host: 'evil.example:9220' } });
+    assert.strictEqual(res.status, 403);
+  });
+
+  it('allows localhost and 127.0.0.1 hosts', async () => {
+    for (const host of ['localhost:9220', '127.0.0.1:9220']) {
+      const res = await request('/health', { headers: { host } });
+      assert.strictEqual(res.status, 200, host);
+    }
+  });
+
+});
+
+describe('Credential Files Under data/', () => {
+
+  it('blocks connector OAuth tokens over /data', async () => {
+    const res = await request('/data/quickbooks/tokens.json');
+    assert.strictEqual(res.status, 403);
+  });
+
+  it('blocks the preview password over /data', async () => {
+    const res = await request('/data/preview/auth.json');
+    assert.strictEqual(res.status, 403);
+  });
+
+  it('blocks tokens through /api/workspace/file', async () => {
+    const res = await request('/api/workspace/file?path=data/jobber/tokens.json');
+    assert.strictEqual(res.status, 403);
+  });
+
+  it('blocks url-encoded spellings', async () => {
+    const res = await request('/data/quickbooks/%74okens.json');
+    assert.strictEqual(res.status, 403);
+  });
+
+});
+
 describe('Path Traversal Prevention', () => {
 
   it('should block ../ in workspace file path', async () => {

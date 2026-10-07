@@ -80,7 +80,9 @@ async function refreshQuickBooksToken() {
     );
 
     // Write updated env.local file
-    fs.writeFileSync('./env.local', envContent);
+    // Owner-only: this file holds the OAuth tokens. mode only applies on create.
+    fs.writeFileSync('./env.local', envContent, { mode: 0o600 });
+    fs.chmodSync('./env.local', 0o600);
 
     console.log(`💾 Updated env.local with new tokens`);
     console.log(`⏰ New token expires at: ${expiresAt.toISOString()}`);

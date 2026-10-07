@@ -83,3 +83,55 @@ export function resolveWorkspaceDatabasePath(workspace, database) {
 
   return { dbPath, dataDir };
 }
+
+/**
+ * True when a Host header names this machine's loopback interface.
+ *
+ * The API binds to 127.0.0.1, but that alone does not stop DNS rebinding: a
+ * page on evil.example can re-point its own name at 127.0.0.1, and the browser
+ * then treats requests to evil.example:9220 as same-origin — no Origin header,
+ * loopback socket, every other check passes. The Host header is the one thing
+ * that still says evil.example, so anything that isn't a loopback name is
+ * refused. The port is ignored: rebinding is about the name, not the port.
+ *
+ * @param {string|undefined} host Raw Host header
+ * @returns {boolean}
+ */
+export function isLoopbackHost(host) {
+  if (typeof host !== 'string' || !host) return false;
+  const h = host.trim().toLowerCase();
+  // [::1] or [::1]:port
+  if (/^\[::1\](:\d+)?$/.test(h)) return true;
+  const name = h.replace(/:\d+$/, '');
+  if (name === 'localhost' || name.endsWith('.localhost')) return true;
+  return /^127\.\d{1,3}\.\d{1,3}\.\d{1,3}$/.test(name);
+}
+
+// Filenames that hold credentials. Connectors keep OAuth tokens under
+// data/<connector>/tokens.json, Google client files are oauth-credentials.json,
+// and the preview server's password lives in auth.json.
+const SENSITIVE_FILENAME_REGEX = new RegExp([
+  '^env\\.local.*$', '^\\.env.*$', '^\\.gitignore$', '^auth\\.json$',
+  // tokens.json, gmail_token.json, foo.token.json, refresh_token.txt, ...
+  '(^|[._-])(access_|refresh_)?tokens?\\.(json|txt)$',
+  // credentials.json, gmail_credentials.json, oauth-credentials.json, ...
+  '(^|[._-])credentials?\\.json$',
+  '^client_secret.*\\.json$', '^service[-_]account.*\\.json$',
+  '\\.(pem|key|p12|pfx)$',
+].join('|'), 'i');
+
+/**
+ * True when a workspace-relative path must never be served over HTTP.
+ * Covers credential files anywhere, the .git directory, and data/preview/.
+ *
+ * @param {string} relativePath Path relative to the workspace root (leading slash optional)
+ * @returns {boolean}
+ */
+export function isSensitiveWorkspacePath(relativePath) {
+  if (typeof relativePath !== 'string') return true;
+  const segments = relativePath.replace(/\\/g, '/').split('/').filter(s => s && s !== '.');
+  if (segments.some(s => s.toLowerCase() === '.git')) return true;
+  if (segments[0]?.toLowerCase() === 'data' && segments[1]?.toLowerCase() === 'preview') return true;
+  const filename = segments[segments.length - 1] || '';
+  return SENSITIVE_FILENAME_REGEX.test(filename);
+}

@@ -13,7 +13,9 @@
     "server:watch": "node --watch tools/server/app-server.js",
     "test": "./scripts/run-tests.sh",
     "test:browser": "npm run build && node scripts/browser-smoke.js",
-    "test:watch": "node --test --watch test/**/*.test.js"
+    "test:watch": "node --test --watch test/**/*.test.js",
+    "test:attacks": "node scripts/attack-test.mjs",
+    "release:check": "bash scripts/release-check.sh"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.115.0",

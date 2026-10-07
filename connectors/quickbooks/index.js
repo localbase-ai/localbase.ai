@@ -9,6 +9,12 @@ dotenv.config({ path: 'env.local' });
  * QuickBooks Direct API Connector
  * Calls QuickBooks Online API directly using OAuth2 credentials
  */
+// Tools that change the books. Off by default: the model calling them reads
+// synced CRM content that outsiders can write, so a prompt-injected lead note
+// should not be able to create or edit customers. Opt in per workspace.
+export const WRITE_TOOLS = new Set(['quickbooks_create_customer', 'quickbooks_update_customer']);
+const writesEnabled = () => process.env.QUICKBOOKS_ENABLE_WRITES === 'true';
+
 export class QuickBooksConnector extends BaseConnector {
   constructor() {
     super('QuickBooks');
@@ -33,13 +39,11 @@ export class QuickBooksConnector extends BaseConnector {
     }
 
     console.log(`[QuickBooks] ✅ OAuth tokens loaded successfully`);
-    console.log(`[QuickBooks] Company ID: ${this.companyId}`);
-    console.log(`[QuickBooks] Access token: ${this.accessToken.slice(0, 20)}...`);
     console.log(`[QuickBooks] Direct API connector initialized`);
   }
 
   async getTools() {
-    return [
+    const tools = [
       {
         name: 'quickbooks_get_company_info',
         description: 'Get basic company information from QuickBooks',
@@ -196,6 +200,7 @@ export class QuickBooksConnector extends BaseConnector {
         },
       },
     ];
+    return writesEnabled() ? tools : tools.filter(t => !WRITE_TOOLS.has(t.name));
   }
 
   async canHandleTool(toolName) {
@@ -203,6 +208,9 @@ export class QuickBooksConnector extends BaseConnector {
   }
 
   async handleTool(toolName, args) {
+    if (WRITE_TOOLS.has(toolName) && !writesEnabled()) {
+      throw new Error(`${toolName} is disabled. Set QUICKBOOKS_ENABLE_WRITES=true in env.local to allow writes to your books.`);
+    }
     try {
       // Handle customer creation
       if (toolName === 'quickbooks_create_customer') {

@@ -8,6 +8,7 @@ import { readFile } from 'fs/promises';
 import { parse } from 'csv-parse/sync';
 import path from 'path';
 import { fileURLToPath } from 'url';
+import { resolveDatasetCsv } from './dataset.js';
 
 // Get current directory first
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -24,6 +25,7 @@ const BUILTIN_TOOLS = new Set([
  * LocalBase Insights MCP Server
  * Basic server for fresh installations - exposes core data querying capabilities
  */
+
 class LocalBaseMCPServer {
   constructor() {
     this.server = new Server(
@@ -340,36 +342,7 @@ class LocalBaseMCPServer {
     const dataPath = path.join(__dirname, '..', '..', 'data');
 
     try {
-      const { readdir, stat } = await import('fs/promises');
-
-      // Check if it's a directory or CSV file
-      const datasetPath = path.join(dataPath, dataset);
-      const csvPath = path.join(dataPath, `${dataset}.csv`);
-
-      let filePath;
-      let isDirectory = false;
-
-      try {
-        const stats = await stat(datasetPath);
-        if (stats.isDirectory()) {
-          // Look for CSV files in the directory
-          const files = await readdir(datasetPath);
-          const csvFiles = files.filter(f => f.endsWith('.csv'));
-
-          if (csvFiles.length === 0) {
-            throw new Error(`No CSV files found in dataset directory: ${dataset}`);
-          }
-
-          filePath = path.join(datasetPath, csvFiles[0]);
-          isDirectory = true;
-        } else {
-          filePath = datasetPath;
-        }
-      } catch {
-        // Try as CSV file
-        filePath = csvPath;
-        await stat(csvPath); // This will throw if file doesn't exist
-      }
+      const { filePath, isDirectory } = await resolveDatasetCsv(dataPath, dataset);
 
       // Read and analyze the CSV
       const content = await readFile(filePath, 'utf-8');
@@ -404,30 +377,7 @@ class LocalBaseMCPServer {
     const dataPath = path.join(__dirname, '..', '..', 'data');
 
     try {
-      const { readdir, stat } = await import('fs/promises');
-
-      // Find the CSV file
-      const datasetPath = path.join(dataPath, dataset);
-      const csvPath = path.join(dataPath, `${dataset}.csv`);
-
-      let filePath;
-
-      try {
-        const stats = await stat(datasetPath);
-        if (stats.isDirectory()) {
-          const files = await readdir(datasetPath);
-          const csvFiles = files.filter(f => f.endsWith('.csv'));
-          if (csvFiles.length === 0) {
-            throw new Error(`No CSV files found in dataset: ${dataset}`);
-          }
-          filePath = path.join(datasetPath, csvFiles[0]);
-        } else {
-          filePath = datasetPath;
-        }
-      } catch {
-        filePath = csvPath;
-        await stat(csvPath);
-      }
+      const { filePath } = await resolveDatasetCsv(dataPath, dataset);
 
       // Read and parse CSV
       const content = await readFile(filePath, 'utf-8');
