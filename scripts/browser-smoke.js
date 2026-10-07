@@ -3,7 +3,7 @@
 // The preview is started against this repository, but uses an isolated
 // temporary credential file and an ephemeral localhost port.
 import assert from 'node:assert/strict';
-import { chmodSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { chmodSync, existsSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { randomBytes } from 'node:crypto';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
@@ -17,6 +17,16 @@ const temp = mkdtempSync(join(tmpdir(), 'localbase-browser-smoke-'));
 const credentials = join(temp, 'auth.json');
 writeFileSync(credentials, JSON.stringify({ password }) + '\n', { mode: 0o600 });
 chmodSync(credentials, 0o600);
+
+// The preview serves this repo as its workspace, which needs a viz registry.
+// It's gitignored, so a fresh checkout (CI) has none: create an empty one for
+// the run and remove it afterwards.
+const registry = join(repo, 'viz', 'visualizations.json');
+const createdRegistry = !existsSync(registry);
+if (createdRegistry) {
+  mkdirSync(join(repo, 'viz'), { recursive: true });
+  writeFileSync(registry, JSON.stringify({ visualizations: [], lastUpdated: new Date().toISOString(), totalVisualizations: 0, totalViews: 0, version: '1.0' }, null, 2));
+}
 
 const freePort = () => new Promise((resolvePort, reject) => {
   const probe = createServer();
@@ -40,6 +50,7 @@ server.stderr.on('data', chunk => { serverOutput += chunk; });
 const stop = () => {
   if (!server.killed) server.kill('SIGTERM');
   rmSync(temp, { recursive: true, force: true });
+  if (createdRegistry) rmSync(registry, { force: true });
 };
 process.on('exit', stop);
 process.on('SIGINT', () => { stop(); process.exit(130); });

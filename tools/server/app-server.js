@@ -563,7 +563,7 @@ app.get('/api/metrics/:metricId', async (req, res) => {
 app.delete('/api/viz/:id', async (req, res) => {
   const { id } = req.params;
 
-  console.log(`🗑️ Delete request for viz ID: ${id}`);
+  console.log(`🗑️ Remove request for viz ID: ${id}`);
 
   try {
     // Get visualization info
@@ -622,7 +622,7 @@ app.delete('/api/viz/:id', async (req, res) => {
     });
 
   } catch (error) {
-    console.error(`❌ Delete failed for ${id}:`, error);
+    console.error(`❌ Removal failed for ${id}:`, error);
 
     res.status(500).json({
       success: false,
@@ -681,8 +681,8 @@ app.get('/api/viz/:id', async (req, res) => {
       `);
     }
 
-    // Serve the actual HTML file
-    const vizPath = join(vizDir, viz.filename);
+    // Serve the actual HTML file (basename: the registry is a file, not proof)
+    const vizPath = join(vizDir, basename(viz.filename));
     res.sendFile(vizPath);
 
     // Record view
