@@ -15,7 +15,7 @@
     "@radix-ui/react-label": "^2.1.16",
     "class-variance-authority": "^0.7.0",
     "clsx": "^2.1.0",
-    "lucide-react": "^1.52.0",
+    "lucide-react": "^1.55.0",
     "ml-random-forest": "^2.1.0",
     "react": "^19.3.0",
     "react-dom": "^19.3.0",
