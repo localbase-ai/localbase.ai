@@ -17,7 +17,7 @@
     "clsx": "^2.1.0",
     "lucide-react": "^1.52.0",
     "ml-random-forest": "^2.1.0",
-    "react": "^19.3.0",
+    "react": "^19.3.1",
     "react-dom": "^19.3.0",
     "tailwind-merge": "^2.2.1"
   },
