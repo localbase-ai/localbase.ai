@@ -1,0 +1,4 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-label="Meta">
+  <rect width="64" height="64" rx="14" fill="#0866FF"/>
+  <path d="M14 40c0-9 4.5-17 9.5-17 4 0 6.5 4.5 8.5 8.5 2-4 4.5-8.5 8.5-8.5 5 0 9.5 8 9.5 17 0 3-1.5 5-4 5-3.5 0-6-5-9-10.5L32 31.5l-4.5 3C24.5 40 22 45 18 45c-2.5 0-4-2-4-5z" fill="none" stroke="#fff" stroke-width="4" stroke-linejoin="round"/>
+</svg>

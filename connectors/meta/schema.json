@@ -1,0 +1,34 @@
+{
+  "connector": "meta",
+  "description": "Meta — Facebook/Instagram ads performance by day (campaign, ad set, ad), Facebook Page insights and posts, Instagram account insights and media",
+  "api_connector": "connectors/meta/",
+  "data_location": "data/meta/meta.db",
+  "objects": {
+    "meta_campaign_daily": { "description": "Ad spend, delivery and headline actions per campaign per day", "sync_script": "connectors/meta/sync.js" },
+    "meta_adset_daily": { "description": "The same per ad set per day", "sync_script": "connectors/meta/sync.js" },
+    "meta_ad_daily": { "description": "The same per ad per day", "sync_script": "connectors/meta/sync.js" },
+    "meta_actions_daily": { "description": "Every action type (count, value, cost) per object per day", "sync_script": "connectors/meta/sync.js" },
+    "meta_campaigns": { "description": "Campaigns — name, status, objective, budget", "sync_script": "connectors/meta/sync.js" },
+    "meta_page_daily": { "description": "Facebook Page metrics per day (long: metric, value)", "sync_script": "connectors/meta/sync.js" },
+    "meta_page_posts": { "description": "Facebook Page posts with lifetime insights in meta_post_insights", "sync_script": "connectors/meta/sync.js" },
+    "meta_ig_daily": { "description": "Instagram account metrics per day (long: metric, value)", "sync_script": "connectors/meta/sync.js" },
+    "meta_ig_media": { "description": "Instagram posts and reels with lifetime insights in meta_ig_media_insights", "sync_script": "connectors/meta/sync.js" }
+  },
+  "common_queries": {
+    "spend_and_leads_by_campaign": {
+      "description": "Spend, leads and calls per campaign, last 30 days",
+      "sql": "SELECT campaign_name, SUM(spend) AS spend, SUM(leads) AS leads, SUM(calls_placed) AS calls FROM meta_campaign_daily WHERE date >= date('now','-30 days') GROUP BY campaign_name ORDER BY spend DESC"
+    },
+    "rejected_metrics": {
+      "description": "Organic metrics Meta refused (deprecated or unavailable)",
+      "sql": "SELECT * FROM meta_metric_errors ORDER BY last_seen_at DESC"
+    }
+  },
+  "api_integration": {
+    "method": "Meta Graph API + Marketing API (version pinned in client.js)",
+    "authentication": "System User access token (read-only permissions)",
+    "env_vars": ["META_ACCESS_TOKEN", "META_AD_ACCOUNT_IDS", "META_PAGE_IDS", "META_IG_USER_IDS", "META_APP_SECRET", "META_API_VERSION"],
+    "setup": "See connectors/meta/README.md",
+    "rate_limits": "Business use case + app usage, reported in response headers; the client paces above 75%"
+  }
+}

@@ -1,0 +1,53 @@
+{
+  "connector": "google-search-console",
+  "description": "Google Search Console performance data — clicks, impressions, CTR and average position by day, query, page, geography, device and search appearance",
+  "api_connector": "connectors/google-search-console/",
+  "objects": {
+    "gsc_daily": {
+      "description": "Headline performance per day. Complete — the only table safe to take totals from.",
+      "data_location": "data/google-search-console/gsc.db",
+      "sync_script": "connectors/google-search-console/sync.js"
+    },
+    "gsc_query_daily": {
+      "description": "Performance per search query per day. Truncated and anonymised by Google; will not sum to gsc_daily.",
+      "data_location": "data/google-search-console/gsc.db",
+      "sync_script": "connectors/google-search-console/sync.js"
+    },
+    "gsc_page_daily": {
+      "description": "Performance per landing URL per day",
+      "data_location": "data/google-search-console/gsc.db",
+      "sync_script": "connectors/google-search-console/sync.js"
+    },
+    "gsc_geo_device_daily": {
+      "description": "Country x device per day — how much search traffic is actually local",
+      "data_location": "data/google-search-console/gsc.db",
+      "sync_script": "connectors/google-search-console/sync.js"
+    },
+    "gsc_appearance_daily": {
+      "description": "Rich-result appearance types per day",
+      "data_location": "data/google-search-console/gsc.db",
+      "sync_script": "connectors/google-search-console/sync.js"
+    },
+    "gsc_sites": {
+      "description": "Search Console properties visible to the authorized account, with permission level",
+      "data_location": "data/google-search-console/gsc.db",
+      "sync_script": "connectors/google-search-console/sync.js"
+    }
+  },
+  "common_queries": {
+    "headline_trend": "SELECT date, clicks, impressions, ROUND(ctr*100,2) AS ctr_pct, ROUND(position,1) AS position FROM gsc_daily WHERE site = ? ORDER BY date",
+    "monthly_rollup": "SELECT substr(date,1,7) AS month, SUM(clicks) clicks, SUM(impressions) impressions, ROUND(SUM(clicks)*1.0/NULLIF(SUM(impressions),0)*100,2) ctr_pct FROM gsc_daily WHERE site = ? GROUP BY 1 ORDER BY 1",
+    "top_queries": "SELECT query, SUM(clicks) clicks, SUM(impressions) impressions, ROUND(AVG(position),1) avg_position FROM gsc_query_daily WHERE site = ? AND date >= date('now','-28 day') GROUP BY 1 ORDER BY clicks DESC LIMIT 50",
+    "striking_distance": "SELECT query, SUM(impressions) impressions, SUM(clicks) clicks, ROUND(AVG(position),1) avg_position FROM gsc_query_daily WHERE site = ? AND date >= date('now','-28 day') GROUP BY 1 HAVING avg_position BETWEEN 5 AND 20 AND impressions > 50 ORDER BY impressions DESC LIMIT 50",
+    "top_pages": "SELECT page, SUM(clicks) clicks, SUM(impressions) impressions, ROUND(AVG(position),1) avg_position FROM gsc_page_daily WHERE site = ? AND date >= date('now','-28 day') GROUP BY 1 ORDER BY clicks DESC LIMIT 50",
+    "local_share": "SELECT country, SUM(clicks) clicks, ROUND(100.0*SUM(clicks)/(SELECT SUM(clicks) FROM gsc_geo_device_daily WHERE site = ?),1) pct FROM gsc_geo_device_daily WHERE site = ? GROUP BY 1 ORDER BY clicks DESC LIMIT 15",
+    "device_split": "SELECT device, SUM(clicks) clicks, SUM(impressions) impressions, ROUND(AVG(position),1) avg_position FROM gsc_geo_device_daily WHERE site = ? GROUP BY 1 ORDER BY clicks DESC",
+    "query_coverage_gap": "SELECT d.date, d.clicks AS total_clicks, COALESCE(q.clicks,0) AS attributed_clicks, d.clicks - COALESCE(q.clicks,0) AS anonymised FROM gsc_daily d LEFT JOIN (SELECT date, SUM(clicks) clicks FROM gsc_query_daily WHERE site = ? GROUP BY 1) q ON q.date = d.date WHERE d.site = ? ORDER BY d.date DESC LIMIT 30",
+    "sync_status": "SELECT site, report, search_type, watermark_date, last_run_at, last_row_count FROM sync_state ORDER BY site, report"
+  },
+  "notes": {
+    "retention": "Search Console exposes only the last 16 months and deletes older data permanently. This connector accumulates beyond that window; the API cannot backfill what was never synced.",
+    "totals": "Take totals from gsc_daily only. Dimensional tables are truncated and anonymised by Google and will not sum to it.",
+    "freshness": "Data finalises over roughly 48-72 hours. Incremental runs re-pull a 4-day trailing window and upsert. Today is never requested."
+  }
+}

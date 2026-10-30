@@ -20,6 +20,11 @@ data/**/*.sqlite-shm
 data/**/*.sqlite-wal
 data/data-sources.local.json
 data/sample-allowlist.json
+# Connector credentials (OAuth tokens, the shared Google OAuth client)
+data/**/tokens.json
+data/**/tokens.json.*
+data/**/salt
+data/google/
 
 # Keep schema documentation
 !data/**/*schema.json

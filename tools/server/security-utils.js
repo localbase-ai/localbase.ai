@@ -1,4 +1,5 @@
-import { join, resolve, sep } from 'path';
+import { existsSync, realpathSync } from 'fs';
+import { join, relative, resolve, sep } from 'path';
 
 const SQLITE_FILE_REGEX = /\.(db|sqlite|sqlite3)$/i;
 const READ_ONLY_QUERY_START_REGEX = /^(SELECT|WITH)\b/i;
@@ -108,12 +109,16 @@ export function isLoopbackHost(host) {
 }
 
 // Filenames that hold credentials. Connectors keep OAuth tokens under
-// data/<connector>/tokens.json, Google client files are oauth-credentials.json,
-// and the preview server's password lives in auth.json.
+// data/<connector>/tokens.json, Google client files are oauth-credentials.json
+// or oauth-client.json, CallRail's hashing salt is data/callrail/salt, and the
+// preview server's password lives in auth.json.
 const SENSITIVE_FILENAME_REGEX = new RegExp([
-  '^env\\.local.*$', '^\\.env.*$', '^\\.gitignore$', '^auth\\.json$',
+  '^env\\.local.*$', '^\\.env.*$', '^\\.gitignore$', '^auth\\.json$', '^salt$',
   // tokens.json, gmail_token.json, foo.token.json, refresh_token.txt, ...
   '(^|[._-])(access_|refresh_)?tokens?\\.(json|txt)$',
+  // a token file's atomic-write temp or a test's backup: tokens.json.123.tmp
+  '(^|[._-])tokens?\\.json\\..+$',
+  '^oauth[-_]client.*\\.json$',
   // credentials.json, gmail_credentials.json, oauth-credentials.json, ...
   '(^|[._-])credentials?\\.json$',
   '^client_secret.*\\.json$', '^service[-_]account.*\\.json$',
@@ -122,7 +127,8 @@ const SENSITIVE_FILENAME_REGEX = new RegExp([
 
 /**
  * True when a workspace-relative path must never be served over HTTP.
- * Covers credential files anywhere, the .git directory, and data/preview/.
+ * Covers credential files anywhere, the .git directory, data/preview/ and
+ * data/google/ (the OAuth client shared by every Google connector).
  *
  * @param {string} relativePath Path relative to the workspace root (leading slash optional)
  * @returns {boolean}
@@ -131,7 +137,37 @@ export function isSensitiveWorkspacePath(relativePath) {
   if (typeof relativePath !== 'string') return true;
   const segments = relativePath.replace(/\\/g, '/').split('/').filter(s => s && s !== '.');
   if (segments.some(s => s.toLowerCase() === '.git')) return true;
-  if (segments[0]?.toLowerCase() === 'data' && segments[1]?.toLowerCase() === 'preview') return true;
+  if (segments[0]?.toLowerCase() === 'data' && ['preview', 'google'].includes(segments[1]?.toLowerCase())) return true;
   const filename = segments[segments.length - 1] || '';
   return SENSITIVE_FILENAME_REGEX.test(filename);
+}
+
+/**
+ * True when serving `relativePath` from `workspace` would expose a credential,
+ * judged by the file it actually opens rather than by how it was spelled.
+ *
+ * The name check alone is not enough. macOS filesystems fold look-alikes a
+ * regex doesn't (ſ U+017F opens an "s", K U+212A a "k"), so "tokens.jſon"
+ * reads tokens.json; and a symlink can point anywhere. So an existing path is
+ * resolved to its real on-disk name (realpath.native returns the stored name,
+ * plain realpath keeps the request's spelling), refused if it leaves the
+ * workspace, and checked again by that real name.
+ *
+ * @param {string} workspace Absolute workspace root
+ * @param {string} relativePath Path relative to the workspace root (leading slash optional)
+ * @returns {boolean}
+ */
+export function isSensitiveWorkspaceRequest(workspace, relativePath) {
+  if (isSensitiveWorkspacePath(relativePath)) return true;
+  const target = join(workspace, relativePath);
+  if (!existsSync(target)) return false;
+  let real, root;
+  try {
+    real = realpathSync.native(target);
+    root = realpathSync.native(workspace);
+  } catch {
+    return true;
+  }
+  if (!isWithinDirectory(real, root)) return true;
+  return isSensitiveWorkspacePath(relative(root, real));
 }

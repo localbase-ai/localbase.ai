@@ -1,6 +1,7 @@
 import { useState, useEffect, lazy, Suspense } from 'react'
 import { initBrowserAPI } from '@/lib/browserAPI'
 import { parseUrl, buildUrl } from '@/lib/router'
+import { VIZ_ORIGIN, isVizMessage } from '@/lib/vizOrigin'
 
 // Initialize browser API shim if not in Electron
 initBrowserAPI()
@@ -17,11 +18,15 @@ import {
   TrendingUp,
   BarChart3,
   Package,
-  LogOut
+  LogOut,
+  LayoutDashboard,
+  Sun,
+  Moon
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import Home from '@/components/Home'
 import Overview from '@/components/Overview'
+import Dashboard from '@/components/Dashboard'
 import VisualizationViewer from '@/components/VisualizationViewer'
 import ProjectsViewer from '@/components/ProjectsViewer'
 import PreviewLogin from '@/components/PreviewLogin'
@@ -64,6 +69,33 @@ function LocalBaseApp({ previewLogin = false, previewMode = false, previewWorksp
     const { projectId } = parseUrl(initialUrl)
     return projectId
   })
+  // Light/dark theme, remembered per browser. The `dark` class goes on <html>
+  // so the theme variables and Tailwind's dark: variant cover the whole page.
+  const [theme, setTheme] = useState(() => {
+    try { return localStorage.getItem('localbase-theme') || 'dark' } catch { return 'dark' }
+  })
+  useEffect(() => {
+    document.documentElement.classList.toggle('dark', theme === 'dark')
+    try { localStorage.setItem('localbase-theme', theme) } catch {}
+    // Vizzes run on another origin, so the theme reaches them over the bridge
+    // (tools/server/viz-bridge.js). Walk nested frames too: a presentation
+    // project frames its pages. A cross-origin window still exposes .frames.
+    const send = (win) => {
+      for (let i = 0; i < win.frames.length; i++) {
+        win.frames[i].postMessage({ type: 'lb:theme', theme }, VIZ_ORIGIN)
+        send(win.frames[i])
+      }
+    }
+    send(window)
+    // A viz asks on load; answer the exact window that asked.
+    const onAsk = (e) => {
+      if (!isVizMessage(e) || e.data?.type !== 'lb:theme?' || !e.source) return
+      e.source.postMessage({ type: 'lb:theme', theme }, e.origin)
+    }
+    window.addEventListener('message', onAsk)
+    return () => window.removeEventListener('message', onAsk)
+  }, [theme])
+
   const [sidebarCollapsed, setSidebarCollapsed] = useState(() => {
     return localStorage.getItem('localbase-sidebar-collapsed') === 'true'
   })
@@ -349,6 +381,7 @@ function LocalBaseApp({ previewLogin = false, previewMode = false, previewWorksp
 
   // Build combined navigation: core items + tool items + settings
   const coreNavItems = [
+    { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
     { id: 'projects', label: 'Projects', icon: FolderKanban },
     { id: 'visualizations', label: 'Visualizations', icon: LineChart },
   ]
@@ -360,7 +393,7 @@ function LocalBaseApp({ previewLogin = false, previewMode = false, previewWorksp
   const navItems = [...coreNavItems, ...toolNavItems, ...settingsNavItems]
 
   return (
-    <div className="flex h-screen bg-background text-foreground dark flex-col">
+    <div className="flex h-screen bg-background text-foreground flex-col">
       {/* Top Bar */}
       <div className="h-14 bg-white/10 backdrop-blur-xl border-b border-white/15 flex items-center justify-between px-4">
         <div
@@ -373,6 +406,16 @@ function LocalBaseApp({ previewLogin = false, previewMode = false, previewWorksp
         <div className="flex items-center gap-3 text-[11px] font-mono text-muted-foreground">
           <FolderOpen className="h-3.5 w-3.5" />
           <span>{currentWorkspace || 'workspace'}</span>
+          <Button
+            variant="ghost"
+            size="icon"
+            onClick={() => setTheme(t => (t === 'dark' ? 'light' : 'dark'))}
+            aria-label={theme === 'dark' ? 'Switch to light mode' : 'Switch to dark mode'}
+            title={theme === 'dark' ? 'Light mode' : 'Dark mode'}
+            className="h-7 w-7"
+          >
+            {theme === 'dark' ? <Sun className="h-3.5 w-3.5" /> : <Moon className="h-3.5 w-3.5" />}
+          </Button>
           {previewMode && (
             <Button
               variant="ghost"
@@ -474,9 +517,11 @@ function LocalBaseApp({ previewLogin = false, previewMode = false, previewWorksp
             <Home
               onWorkspaceSelected={() => {
                 loadWorkspace()
-                setSelectedView('visualizations')
+                setSelectedView('dashboard')
               }}
             />
+          ) : selectedView === 'dashboard' ? (
+            <Dashboard />
           ) : selectedView === 'visualizations' ? (
             <VisualizationViewer key={vizKey} />
           ) : selectedView === 'projects' ? (

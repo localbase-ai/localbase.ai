@@ -2,8 +2,9 @@
  * Router - URL parsing and building for LocalBase navigation
  *
  * Handles mapping between URL paths and app views:
- *   /                    → chat (default)
- *   /chat                → chat
+ *   /                    → dashboard (default)
+ *   /dashboard           → dashboard (pinned visualizations)
+ *   /home                → welcome / workspace picker
  *   /visualizations      → visualizations gallery
  *   /viz/:id             → specific visualization
  *   /projects            → projects list
@@ -14,7 +15,7 @@
  * Also supports legacy query params (?viz=, ?project=) for backwards compat.
  */
 
-export const VIEWS = ['home', 'visualizations', 'projects', 'settings'];
+export const VIEWS = ['home', 'dashboard', 'visualizations', 'projects', 'settings'];
 
 // Visualization IDs are stored in the registry without a file extension, but
 // URLs like /viz/foo.html (e.g. copied from the address bar or the registry's
@@ -63,8 +64,8 @@ export function parseUrl(url) {
   const segments = path.split('/').filter(Boolean);
 
   if (segments.length === 0) {
-    // Bare root → the welcome / workspace-picker (home) view
-    return { view: 'home', vizId: null, projectId: null };
+    // Bare root → the dashboard
+    return { view: 'dashboard', vizId: null, projectId: null };
   }
 
   const first = segments[0];
@@ -72,6 +73,9 @@ export function parseUrl(url) {
   switch (first) {
     case 'home':
       return { view: 'home', vizId: null, projectId: null };
+
+    case 'dashboard':
+      return { view: 'dashboard', vizId: null, projectId: null };
 
     case 'visualizations':
       return { view: 'visualizations', vizId: null, projectId: null };
@@ -112,6 +116,9 @@ export function parseUrl(url) {
 export function buildUrl(view, vizId = null, projectId = null) {
   switch (view) {
     case 'home':
+      return '/home';
+
+    case 'dashboard':
       return '/';
 
     case 'visualizations':

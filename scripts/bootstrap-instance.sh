@@ -95,6 +95,9 @@ echo "✓ Synced: scripts/"
 mkdir -p "$INSTANCE_DIR/connectors"
 cp "$FRAMEWORK_DIR/connectors/MCPAdapter.js" "$INSTANCE_DIR/connectors/" 2>/dev/null || true
 cp "$FRAMEWORK_DIR/connectors/APIClient.js" "$INSTANCE_DIR/connectors/" 2>/dev/null || true
+cp "$FRAMEWORK_DIR/connectors/SqliteConnector.js" "$INSTANCE_DIR/connectors/" 2>/dev/null || true
+cp "$FRAMEWORK_DIR/connectors/google-oauth.js" "$INSTANCE_DIR/connectors/" 2>/dev/null || true
+cp "$FRAMEWORK_DIR/connectors/google-authorize.js" "$INSTANCE_DIR/connectors/" 2>/dev/null || true
 echo "✓ Synced: connectors base classes"
 
 # Copy framework tests

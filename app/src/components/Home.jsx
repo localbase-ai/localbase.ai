@@ -177,8 +177,13 @@ export default function Home({ onWorkspaceSelected, previewLogin = false, previe
 
     let animationId
     const animate = () => {
+      // Checked every frame so the theme toggle switches it live. Light mode
+      // fades into white with darker green stars; pale green vanishes on white.
+      const dark = document.documentElement.classList.contains('dark')
+      const rgb = dark ? '134, 239, 172' : '22, 163, 74'
+
       // Fade effect instead of clear for motion blur
-      ctx.fillStyle = 'rgba(0, 0, 0, 0.15)'
+      ctx.fillStyle = dark ? 'rgba(0, 0, 0, 0.15)' : 'rgba(255, 255, 255, 0.15)'
       ctx.fillRect(0, 0, canvas.width, canvas.height)
 
       stars.forEach(star => {
@@ -215,14 +220,14 @@ export default function Home({ onWorkspaceSelected, previewLogin = false, previe
         ctx.beginPath()
         ctx.moveTo(prevPx, prevPy)
         ctx.lineTo(px, py)
-        ctx.strokeStyle = `rgba(134, 239, 172, ${opacity * 0.6})`
+        ctx.strokeStyle = `rgba(${rgb}, ${opacity * 0.6})`
         ctx.lineWidth = size * 0.5
         ctx.stroke()
 
         // Draw star point
         ctx.beginPath()
         ctx.arc(px, py, size, 0, Math.PI * 2)
-        ctx.fillStyle = `rgba(134, 239, 172, ${opacity})`
+        ctx.fillStyle = `rgba(${rgb}, ${opacity})`
         ctx.fill()
       })
 
@@ -257,13 +262,13 @@ export default function Home({ onWorkspaceSelected, previewLogin = false, previe
         <div className="min-h-full flex items-center justify-center py-12 px-8">
           <div className="text-center space-y-8 w-full max-w-6xl" style={{ zoom: 0.8 }}>
         <div className="space-y-6">
-          <Bot className="h-24 w-24 mx-auto text-green-400 opacity-80" strokeWidth={1} />
+          <Bot className="h-24 w-24 mx-auto text-green-600 dark:text-green-400 opacity-80" strokeWidth={1} />
 
           <div className="space-y-2">
             <h1 className="text-2xl font-medium tracking-tight text-muted-foreground">
               welcome to
             </h1>
-            <h2 className="text-5xl font-bold tracking-tight text-green-400 font-mono">
+            <h2 className="text-5xl font-bold tracking-tight text-green-600 dark:text-green-400 font-mono">
               localbase
             </h2>
           </div>

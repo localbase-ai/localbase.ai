@@ -15,9 +15,9 @@ import { parseUrl, buildUrl, VIEWS } from '../app/src/lib/router.js';
 
 describe('parseUrl', () => {
 
-  it('should return home view for root path', () => {
+  it('should return dashboard view for root path', () => {
     const result = parseUrl('/');
-    assert.strictEqual(result.view, 'home');
+    assert.strictEqual(result.view, 'dashboard');
     assert.strictEqual(result.vizId, null);
     assert.strictEqual(result.projectId, null);
   });
@@ -25,6 +25,11 @@ describe('parseUrl', () => {
   it('should parse /home path', () => {
     const result = parseUrl('/home');
     assert.strictEqual(result.view, 'home');
+  });
+
+  it('should parse /dashboard path', () => {
+    const result = parseUrl('/dashboard');
+    assert.strictEqual(result.view, 'dashboard');
   });
 
   it('should parse /visualizations path', () => {
@@ -119,9 +124,12 @@ describe('parseUrl', () => {
 
 describe('buildUrl', () => {
 
-  it('should build root path for home view', () => {
-    const url = buildUrl('home');
-    assert.strictEqual(url, '/');
+  it('should build root path for dashboard view', () => {
+    assert.strictEqual(buildUrl('dashboard'), '/');
+  });
+
+  it('should build /home for home view', () => {
+    assert.strictEqual(buildUrl('home'), '/home');
   });
 
   it('should build /visualizations for visualizations view without vizId', () => {
@@ -169,6 +177,7 @@ describe('VIEWS constant', () => {
 
   it('should export valid view names', () => {
     assert.ok(VIEWS.includes('home'));
+    assert.ok(VIEWS.includes('dashboard'));
     assert.ok(VIEWS.includes('visualizations'));
     assert.ok(VIEWS.includes('projects'));
     assert.ok(VIEWS.includes('settings'));

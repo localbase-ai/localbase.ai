@@ -44,6 +44,10 @@ const SECRET_FILES = [
   'connectors/google/client_secret_123.json', 'data/x/service-account.json',
   'data/x/refresh_token.txt', 'data/preview/auth.json', 'data/preview/other.txt',
   'projects/x/auth.json', 'data/x/server.pem', 'data/x/cert.p12',
+  // The shared Google OAuth client, CallRail's hashing salt, and a token file's
+  // atomic-write temp and test backup.
+  'data/google/oauth-client.json', 'data/callrail/salt',
+  'data/google-ads/tokens.json.4242.tmp', 'data/google-analytics/tokens.json.testbackup',
 ];
 for (const f of SECRET_FILES) put(f, `${CANARY} ${f}`);
 put('.git/config', `${CANARY} git`);
@@ -80,7 +84,7 @@ let browser;
 const stop = () => { for (const p of [api, vite]) p.kill('SIGTERM'); browser?.close().catch(() => {}); if (process.env.KEEP_ATTACK_WS) console.log('kept', ws); else rmSync(temp, { recursive: true, force: true }); };
 
 // Raw HTTP so paths and Host headers go out exactly as written.
-const raw = (port, path, { method = 'GET', headers = {}, body } = {}) => new Promise((ok) => {
+const rawOnce = (port, path, { method = 'GET', headers = {}, body } = {}) => new Promise((ok) => {
   // The API binds 127.0.0.1; Vite binds "localhost", which may be ::1 only.
   const req = http.request({ host: port === API ? '127.0.0.1' : 'localhost', port, path, method, headers: { host: `localhost:${port}`, ...headers } }, (res) => {
     let data = ''; res.on('data', c => { data += c; }); res.on('end', () => ok({ status: res.statusCode, headers: res.headers, body: data }));
@@ -89,6 +93,23 @@ const raw = (port, path, { method = 'GET', headers = {}, body } = {}) => new Pro
   if (body) req.write(body);
   req.end();
 });
+// The API rate-limits each client (200 requests a minute) and this suite sends
+// more than that. A 429 says nothing about whether an attack worked, so wait
+// out the window and ask again rather than count it either way.
+let throttled = false;
+let sent = 0;
+let windowStart = 0;
+const raw = async (...args) => {
+  for (;;) {
+    if (!sent++) windowStart = Date.now();
+    const r = await rawOnce(...args);
+    if (r.status !== 429) return r;
+    throttled = true;
+    let wait = 5;
+    try { wait = JSON.parse(r.body).retryAfter ?? wait; } catch { /* keep the default */ }
+    await new Promise(res => setTimeout(res, (wait + 1) * 1000));
+  }
+};
 const waitFor = async (port, path) => {
   for (let i = 0; i < 100; i++) { if ((await raw(port, path)).status === 200) return; await new Promise(r => setTimeout(r, 150)); }
   throw new Error(`server on :${port} never came up\n${logs.join('').slice(-2000)}`);
@@ -119,7 +140,9 @@ try {
   check('rebinding Host → dev server refused', rv.status === 403, rv.status);
 
   // 2. Secret files, by every route and spelling, on both ports.
-  const spellings = (f) => [f, f.toUpperCase(), f.replace(/([^/]+)$/, (m) => encodeURIComponent(m).replace(/t/, '%74')), f.replace('/', '//'), f.replace('/', '/./')];
+  // Includes Unicode look-alikes macOS folds onto ASCII: ſ (U+017F) opens an s, K (U+212A) a k.
+  const spellings = (f) => [...new Set([f, f.toUpperCase(), f.replace(/([^/]+)$/, (m) => encodeURIComponent(m).replace(/t/, '%74')), f.replace('/', '//'), f.replace('/', '/./'),
+    f.replace(/s([^/]*)$/, '%C5%BF$1'), f.replace(/k([^/]*)$/, '%E2%84%AA$1')])];
   for (const f of SECRET_FILES) {
     for (const port of [API, APP]) {
       for (const p of spellings(f)) {
@@ -168,6 +191,9 @@ try {
   check('viz JSON data still loads', (await raw(API, '/data/daily.json')).status === 200);
 
   // 7. In a real browser, from inside a viz.
+  // The browser's own requests can't retry a 429, so give them a fresh window
+  // once this suite has used much of the current one.
+  if (throttled || sent > 100) await new Promise(res => setTimeout(res, Math.max(0, windowStart + 61_000 - Date.now())));
   browser = await chromium.launch({ headless: true });
   const page = await browser.newPage();
   await page.goto(`http://localhost:${APP}/viz/probe`);

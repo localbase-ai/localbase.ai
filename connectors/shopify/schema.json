@@ -1,0 +1,31 @@
+{
+  "connector": "shopify",
+  "description": "Shopify store — orders with first/last-visit attribution, line items, refunds, products and variants",
+  "api_connector": "connectors/shopify/",
+  "data_location": "data/shopify/shopify.db",
+  "objects": {
+    "shopify_orders": { "description": "Orders: totals, status, channel, customer_id, shipping city/region/country (no personal details)", "sync_script": "connectors/shopify/sync.js" },
+    "shopify_order_attribution": { "description": "Per-order customer journey: first/last visit source, landing page, referrer, UTMs", "sync_script": "connectors/shopify/sync.js" },
+    "shopify_order_lines": { "description": "Order line items: product, variant, SKU, quantity, totals", "sync_script": "connectors/shopify/sync.js" },
+    "shopify_refunds": { "description": "Refunds by refund date", "sync_script": "connectors/shopify/sync.js" },
+    "shopify_products": { "description": "Products: type, vendor, status, inventory, price range", "sync_script": "connectors/shopify/sync.js" },
+    "shopify_variants": { "description": "Product variants: SKU, price, inventory", "sync_script": "connectors/shopify/sync.js" }
+  },
+  "common_queries": {
+    "sales_last_30_days": {
+      "description": "Daily sales for the last 30 days",
+      "sql": "SELECT * FROM shopify_sales_daily WHERE date >= date('now', '-30 days') ORDER BY date"
+    },
+    "orders_by_first_source": {
+      "description": "Orders and net sales by first-visit source, last 90 days",
+      "sql": "SELECT first_source, first_medium, SUM(orders) AS orders, ROUND(SUM(net_sales), 2) AS net_sales FROM shopify_sales_by_source_daily WHERE date >= date('now', '-90 days') GROUP BY 1, 2 ORDER BY net_sales DESC"
+    }
+  },
+  "api_integration": {
+    "method": "Shopify Admin GraphQL API",
+    "authentication": "Dev Dashboard app (client credentials grant) or admin custom-app access token",
+    "env_vars": ["SHOPIFY_STORE_DOMAIN", "SHOPIFY_CLIENT_ID", "SHOPIFY_CLIENT_SECRET", "SHOPIFY_ACCESS_TOKEN", "SHOPIFY_API_VERSION"],
+    "setup": "See connectors/shopify/README.md",
+    "rate_limits": "Cost-based: 1,000-point bucket per store (more on Plus), refilling per second"
+  }
+}

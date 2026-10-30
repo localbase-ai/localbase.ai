@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { Database, Loader2, FolderOpen, RefreshCw, Check, X, Edit, Save, Plus, ExternalLink } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
@@ -284,7 +284,7 @@ export default function Overview({ onNavigateHome }) {
     }
   }
 
-  const handleSyncSource = async (sourceId) => {
+  const handleSyncSource = async (sourceId, { attach = false } = {}) => {
     setSyncingSource(sourceId)
     setSyncStatus(prev => ({ ...prev, [sourceId]: null })) // Clear previous status
 
@@ -292,9 +292,13 @@ export default function Overview({ onNavigateHome }) {
       if (window.electronAPI?.api?.syncDataSource) {
         // This only *starts* the job — it returns as soon as the child is
         // spawned, so a success here means "launched", not "finished".
-        const result = await window.electronAPI.api.syncDataSource(sourceId)
+        // attach: a run is already going (found on page load), so follow it.
+        const result = attach ? { success: true } : await window.electronAPI.api.syncDataSource(sourceId)
 
-        if (!result.success) {
+        // The server refuses a second run of a source (409, status 'running').
+        // That run is what the user asked for, so follow it rather than
+        // reporting an error — the page may simply not have started it.
+        if (!result.success && result.status !== 'running') {
           console.error(`Sync failed to start for ${sourceId}:`, result.error, result.output)
           setSyncStatus(prev => ({ ...prev, [sourceId]: 'error' }))
           return
@@ -324,6 +328,27 @@ export default function Overview({ onNavigateHome }) {
       }, 5000)
     }
   }
+
+  // A sync started elsewhere (another tab, before a reload, or the scheduled
+  // job via the Settings server) is invisible to this page's own state, so the
+  // button would offer "Sync" and the click would 409. Find a running job once
+  // the source list is in, and follow it. One spinner slot, so the first wins.
+  const resumedRef = useRef(false)
+  useEffect(() => {
+    if (resumedRef.current || !dataSources?.length || !window.electronAPI?.api?.getSyncStatus) return
+    resumedRef.current = true
+    ;(async () => {
+      for (const source of dataSources.filter(s => s.type === 'automated')) {
+        try {
+          const status = await window.electronAPI.api.getSyncStatus(source.id)
+          if (status?.status === 'running') {
+            handleSyncSource(source.id, { attach: true })
+            return
+          }
+        } catch {}
+      }
+    })()
+  }, [dataSources])
 
   // Available connector templates
   const availableConnectors = [
@@ -433,14 +458,6 @@ export default function Overview({ onNavigateHome }) {
   if (!projectRoot) {
     return (
       <div className="p-8 space-y-8">
-        <div className="space-y-2">
-          <h1 className="text-3xl font-bold font-mono text-green-400">
-            LocalBase Desktop
-          </h1>
-          <p className="text-muted-foreground">
-            Manage your local data infrastructure
-          </p>
-        </div>
         <Card>
           <CardHeader>
             <CardTitle>No Workspace Selected</CardTitle>
@@ -465,16 +482,6 @@ export default function Overview({ onNavigateHome }) {
 
   return (
     <div className="p-8 space-y-8">
-      {/* Header */}
-      <div className="space-y-2">
-        <h1 className="text-3xl font-bold font-mono text-green-400">
-          LocalBase Desktop
-        </h1>
-        <p className="text-muted-foreground">
-          Manage your local data infrastructure
-        </p>
-      </div>
-
       {/* Add Connector Modal */}
       {showAddConnector && (
         <div className="fixed inset-0 m-0 bg-black/50 flex items-center justify-center z-50">

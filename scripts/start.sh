@@ -93,8 +93,16 @@ echo "  API:  http://localhost:$API_PORT"
 echo "  App:  http://localhost:$APP_PORT"
 echo ""
 
-# Open browser after a short delay
-(sleep 2 && open "http://localhost:$APP_PORT" 2>/dev/null || xdg-open "http://localhost:$APP_PORT" 2>/dev/null || true) &
+# Open browser after a short delay. Prefer terminal-browser in a split beside
+# this pane when it's installed; LOCALBASE_BROWSER=system forces the OS browser.
+open_app() {
+    local url="http://localhost:$APP_PORT"
+    if [ "${LOCALBASE_BROWSER:-}" != "system" ] && command -v terminal-browser &> /dev/null; then
+        terminal-browser open "$url" --split right > /dev/null 2>&1 && return
+    fi
+    open "$url" 2>/dev/null || xdg-open "$url" 2>/dev/null || true
+}
+(sleep 2 && open_app) &
 
 # Start dev server (this blocks)
 npm run dev

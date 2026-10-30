@@ -1,0 +1,29 @@
+{
+  "connector": "google-merchant-center",
+  "description": "Google Merchant Center — product catalogue and approval status, item and account issues, and daily free-listing / Shopping-ad performance",
+  "api_connector": "connectors/google-merchant-center/",
+  "data_location": "data/google-merchant-center/merchant.db",
+  "objects": {
+    "mc_products": { "description": "Product snapshot: attributes, price, availability, status; disappeared_at marks products no longer in the feed", "sync_script": "connectors/google-merchant-center/sync.js" },
+    "mc_product_destinations": { "description": "Approval per product per reporting context (Shopping ads, free listings, ...)", "sync_script": "connectors/google-merchant-center/sync.js" },
+    "mc_product_issues": { "description": "Item-level issues: code, severity, resolution, attribute", "sync_script": "connectors/google-merchant-center/sync.js" },
+    "mc_account_issues": { "description": "Account-level issues", "sync_script": "connectors/google-merchant-center/sync.js" },
+    "mc_performance_daily": { "description": "Clicks, impressions, conversions per offer per day, split by free listings vs ads", "sync_script": "connectors/google-merchant-center/sync.js" }
+  },
+  "common_queries": {
+    "disapproved_products": {
+      "description": "Products with a disapproving issue",
+      "sql": "SELECT p.offer_id, p.title, i.code, i.attribute, i.description FROM mc_product_issues i JOIN mc_products p USING (account_id, product_name) WHERE i.severity = 'DISAPPROVED' AND p.disappeared_at IS NULL"
+    },
+    "clicks_by_method": {
+      "description": "Last 30 days of clicks, free listings vs Shopping ads",
+      "sql": "SELECT marketing_method, SUM(clicks) AS clicks, SUM(impressions) AS impressions FROM mc_performance_daily WHERE date >= date('now', '-30 days') GROUP BY marketing_method"
+    }
+  },
+  "api_integration": {
+    "method": "Google Merchant API v1 (accounts, products, reports)",
+    "authentication": "Google OAuth 2.0 (Desktop client, content scope)",
+    "env_vars": ["MERCHANT_ACCOUNT_IDS", "GOOGLE_OAUTH_CLIENT_FILE"],
+    "setup": "See connectors/google-merchant-center/README.md"
+  }
+}

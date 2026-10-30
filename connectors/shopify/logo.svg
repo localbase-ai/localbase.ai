@@ -1,0 +1,5 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-label="Shopify">
+  <rect width="64" height="64" rx="14" fill="#5E8E3E"/>
+  <path d="M20 24h24l-2.5 24h-19z" fill="#fff"/>
+  <path d="M26 24v-3a6 6 0 0 1 12 0v3" fill="none" stroke="#fff" stroke-width="3" stroke-linecap="round"/>
+</svg>

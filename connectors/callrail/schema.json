@@ -1,0 +1,31 @@
+{
+  "connector": "callrail",
+  "description": "CallRail call tracking — calls with source, campaign, keyword and lead status; tracking numbers; form submissions",
+  "api_connector": "connectors/callrail/",
+  "data_location": "data/callrail/callrail.db",
+  "objects": {
+    "callrail_calls": { "description": "One row per call: attribution, outcome, lead status, hashed caller", "sync_script": "connectors/callrail/sync.js" },
+    "callrail_calls_daily": { "description": "View: calls, answered, first-time callers and qualified leads by day, source and campaign", "sync_script": "connectors/callrail/sync.js" },
+    "callrail_call_tags": { "description": "Tags applied to each call", "sync_script": "connectors/callrail/sync.js" },
+    "callrail_trackers": { "description": "Tracking numbers and the source each one represents", "sync_script": "connectors/callrail/sync.js" },
+    "callrail_form_submissions": { "description": "Tracked form submissions (only if the account has form tracking)", "sync_script": "connectors/callrail/sync.js" },
+    "callrail_companies": { "description": "Companies synced from the account", "sync_script": "connectors/callrail/sync.js" }
+  },
+  "common_queries": {
+    "calls_by_source_30d": {
+      "description": "Calls and qualified leads by source, last 30 days",
+      "sql": "SELECT source, SUM(calls) AS calls, SUM(answered) AS answered, SUM(first_time_callers) AS new_callers, SUM(qualified_leads) AS leads FROM callrail_calls_daily WHERE date >= date('now', '-30 days') GROUP BY source ORDER BY calls DESC"
+    },
+    "missed_calls": {
+      "description": "Unanswered calls in the last 7 days",
+      "sql": "SELECT start_time, source_name, campaign, voicemail FROM callrail_calls WHERE answered = 0 AND call_date >= date('now', '-7 days') ORDER BY start_time DESC"
+    }
+  },
+  "api_integration": {
+    "method": "CallRail REST API v3",
+    "authentication": "API key (Authorization: Token token=\"…\")",
+    "env_vars": ["CALLRAIL_API_KEY", "CALLRAIL_ACCOUNT_ID", "CALLRAIL_COMPANY_IDS", "CALLRAIL_HASH_SALT"],
+    "setup": "See connectors/callrail/README.md",
+    "rate_limits": "Hourly and daily request caps; the client backs off on 429 using Retry-After"
+  }
+}

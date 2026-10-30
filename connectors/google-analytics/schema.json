@@ -1,0 +1,20 @@
+{
+  "connector": "google-analytics",
+  "description": "Google Analytics 4 — daily traffic, channels, campaigns, landing pages, geography, devices and events",
+  "api_connector": "connectors/google-analytics/",
+  "data_location": "data/google-analytics/ga.db",
+  "objects": {
+    "ga_daily": { "description": "Headline traffic per property per day", "sync_script": "connectors/google-analytics/sync.js" },
+    "ga_channel_daily": { "description": "Sessions by default channel group per day", "sync_script": "connectors/google-analytics/sync.js" },
+    "ga_source_medium_daily": { "description": "Sessions by source / medium per day", "sync_script": "connectors/google-analytics/sync.js" },
+    "ga_campaign_daily": { "description": "Sessions by campaign per day", "sync_script": "connectors/google-analytics/sync.js" },
+    "ga_landing_daily": { "description": "Sessions by landing page per day", "sync_script": "connectors/google-analytics/sync.js" },
+    "ga_event_daily": { "description": "Event counts per day (key events included)", "sync_script": "connectors/google-analytics/sync.js" }
+  },
+  "api_integration": {
+    "method": "Google Analytics Data API v1beta + Admin API v1beta",
+    "authentication": "Google OAuth 2.0 (Desktop client, read-only scope)",
+    "env_vars": ["GA4_PROPERTIES", "GOOGLE_OAUTH_CLIENT_FILE"],
+    "setup": "See connectors/google-analytics/README.md"
+  }
+}

@@ -38,6 +38,7 @@ This is the **framework** repo. Business instances are separate repos that conta
 - Their own `data/` (business-specific databases)
 - Their own `env.local` (credentials)
 - Their own `CLAUDE.md` (instance context)
+- Their own `dashboard.json` (what the Dashboard view shows; shape documented in `app/src/lib/dashboardMetrics.js`; no file means an empty dashboard)
 
 Sync framework to an instance: `cd <instance-dir> && ./scripts/sync-framework.sh`
 

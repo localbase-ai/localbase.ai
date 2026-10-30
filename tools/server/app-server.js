@@ -29,7 +29,7 @@ import { API_PORT, APP_PORT, ALLOWED_ORIGINS } from '../ports.js';
 // import { CompanyCamConnector } from '../../connectors/companycam/index.js'; // REMOVED
 import Database from 'better-sqlite3';
 import { updateEnvContent } from './env-file.js';
-import { isAllowedReadOnlySqlQuery, isLoopbackHost, isSensitiveWorkspacePath, isWithinDirectory, resolveWorkspaceDatabasePath } from './security-utils.js';
+import { isAllowedReadOnlySqlQuery, isLoopbackHost, isSensitiveWorkspaceRequest, isWithinDirectory, resolveWorkspaceDatabasePath } from './security-utils.js';
 
 const __filename = fileURLToPath(import.meta.url);
 
@@ -120,6 +120,46 @@ function persistLocalDataSources(workspacePath, data) {
   mkdirSync(dirname(local), { recursive: true });
   writeFileSync(local, JSON.stringify(data, null, 2));
   return local;
+}
+
+/**
+ * Live row count for a data source, so Settings never shows a number typed
+ * into the config months ago. Opt-in per source with `storage.table` (the
+ * table that holds its records; one SQLite file can back several sources).
+ * Cached until the database file or its WAL changes, because COUNT(*) on a
+ * multi-million-row table takes a second or two and blocks the event loop.
+ * Returns null when the source has no table or the count fails, and the
+ * configured `data.records` is shown instead.
+ */
+const recordCountCache = new Map();
+function liveRecordCount(workspacePath, source) {
+  const table = source?.storage?.table;
+  const location = source?.storage?.location;
+  if (!table || !location || !/^[A-Za-z_][A-Za-z0-9_]*$/.test(table)) return null;
+
+  const dbPath = normalize(join(workspacePath, location));
+  if (!dbPath.startsWith(normalize(workspacePath) + '/') || !existsSync(dbPath)) return null;
+
+  try {
+    const stamp = [dbPath, `${dbPath}-wal`]
+      .map(f => (existsSync(f) ? `${statSync(f).mtimeMs}:${statSync(f).size}` : '-'))
+      .join('|');
+    const key = `${dbPath}#${table}`;
+    const hit = recordCountCache.get(key);
+    if (hit && hit.stamp === stamp) return hit.n;
+
+    const db = new Database(dbPath, { readonly: true, fileMustExist: true });
+    try {
+      const n = db.prepare(`SELECT COUNT(*) AS n FROM "${table}"`).get().n;
+      recordCountCache.set(key, { stamp, n });
+      return n;
+    } finally {
+      db.close();
+    }
+  } catch (err) {
+    console.warn(`⚠️  Could not count ${location}#${table}:`, err.message);
+    return null;
+  }
 }
 
 /**
@@ -453,11 +493,12 @@ app.use((req, res, next) => {
     return res.status(403).json({ error: 'Access to sensitive files not allowed' });
   }
 
-  // /data and /projects are served straight from the workspace, so their URL
-  // paths are workspace-relative — which is what keeps connector OAuth tokens
-  // (data/<connector>/tokens.json) and the preview password (data/preview/)
-  // from being downloadable.
-  if (/^\/(data|projects)(\/|$)/i.test(path) && isSensitiveWorkspacePath(path)) {
+  // /data, /projects and /viz are served straight from the workspace, so their
+  // URL paths are workspace-relative — which is what keeps connector OAuth
+  // tokens (data/<connector>/tokens.json) and the preview password
+  // (data/preview/) from being downloadable. Checked against the file the path
+  // really opens, so look-alike spellings and symlinks don't get past it.
+  if (/^\/(data|projects|viz)(\/|$)/i.test(path) && isSensitiveWorkspaceRequest(currentWorkspace, path)) {
     return res.status(403).json({ error: 'Access to sensitive files not allowed' });
   }
 
@@ -924,6 +965,24 @@ app.get('/api/workspace', (req, res) => {
       success: false,
       error: error.message
     });
+  }
+});
+
+/**
+ * GET /api/dashboard
+ * The workspace's dashboard config: dashboard.json at the workspace root (see
+ * app/src/lib/dashboardMetrics.js for its shape). No file means no metrics,
+ * not an error. Its queries run through /api/db/query like any other.
+ */
+app.get('/api/dashboard', (req, res) => {
+  const file = join(currentWorkspace, 'dashboard.json');
+  if (!existsSync(file)) return res.json({ success: true, metrics: [] });
+  try {
+    const config = JSON.parse(readFileSync(file, 'utf8'));
+    if (!Array.isArray(config.metrics)) throw new Error('"metrics" must be an array');
+    res.json({ success: true, metrics: config.metrics });
+  } catch (error) {
+    res.status(500).json({ success: false, error: `dashboard.json: ${error.message}` });
   }
 });
 
@@ -1824,8 +1883,14 @@ app.get('/api/datasources', (req, res) => {
     const { filePath: dataSourcesFile, data } = loadDataSources(currentWorkspace);
 
     if (dataSourcesFile) {
-      // Return sources object directly - matches what Overview.jsx expects
-      res.json({ success: true, sources: data.sources || {} });
+      // Return sources object directly - matches what Overview.jsx expects.
+      // Record counts come from the database where the source names its table.
+      const sources = {};
+      for (const [id, source] of Object.entries(data.sources || {})) {
+        const n = liveRecordCount(currentWorkspace, source);
+        sources[id] = n == null ? source : { ...source, data: { ...source.data, records: n } };
+      }
+      res.json({ success: true, sources });
     } else {
       // Fallback: scan for .db files if no config exists
       const dataSources = [];
@@ -1892,7 +1957,7 @@ app.get('/api/workspace/file', (req, res) => {
 
     // Security: Block sensitive files
     const filename = relativePath.split('/').pop();
-    if (SENSITIVE_FILES.some(f => filename === f || relativePath.includes(f)) || isSensitiveWorkspacePath(relativePath)) {
+    if (SENSITIVE_FILES.some(f => filename === f || relativePath.includes(f)) || isSensitiveWorkspaceRequest(currentWorkspace, relativePath)) {
       return res.status(403).json({
         success: false,
         error: 'Access to sensitive files not allowed'

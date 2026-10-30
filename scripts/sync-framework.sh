@@ -73,7 +73,9 @@ echo "🔌 Syncing connector base classes..."
 cp $FRAMEWORK_DIR/connectors/MCPAdapter.js $INSTANCE_DIR/connectors/ 2>/dev/null || true
 cp $FRAMEWORK_DIR/connectors/APIClient.js $INSTANCE_DIR/connectors/ 2>/dev/null || true
 cp $FRAMEWORK_DIR/connectors/SqliteConnector.js $INSTANCE_DIR/connectors/ 2>/dev/null || true
-cp $FRAMEWORK_DIR/connectors/SqliteConnector.js $INSTANCE_DIR/connectors/ 2>/dev/null || true
+# Shared Google OAuth, used by every Google connector
+cp $FRAMEWORK_DIR/connectors/google-oauth.js $INSTANCE_DIR/connectors/ 2>/dev/null || true
+cp $FRAMEWORK_DIR/connectors/google-authorize.js $INSTANCE_DIR/connectors/ 2>/dev/null || true
 
 # Sync viz/ framework assets
 # - JS/CSS are framework-level shared assets (e.g., viz-colors.js)

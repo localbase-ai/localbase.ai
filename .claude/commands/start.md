@@ -1,1 +1,1 @@
-Run ./scripts/start.sh to start the LocalBase dev server. This will check dependencies, free ports if needed, and open the browser automatically.
+Run ./scripts/start.sh to start the LocalBase dev server. This will check dependencies, free ports if needed, and open the app in a terminal-browser split (falls back to the system browser; LOCALBASE_BROWSER=system forces it).

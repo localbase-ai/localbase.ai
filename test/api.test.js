@@ -49,6 +49,13 @@ describe('Workspace API', () => {
     assert.ok(res.data.success !== undefined || Array.isArray(res.data.workspaces));
   });
 
+  it('GET /api/dashboard should return a metrics array', async () => {
+    const res = await request('/api/dashboard');
+    assert.strictEqual(res.status, 200);
+    assert.strictEqual(res.data.success, true);
+    assert.ok(Array.isArray(res.data.metrics));
+  });
+
   it('GET /api/workspace/stats should return statistics', async () => {
     const res = await request('/api/workspace/stats');
     assert.strictEqual(res.status, 200);

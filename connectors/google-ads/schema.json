@@ -1,0 +1,39 @@
+{
+  "connector": "google-ads",
+  "description": "Google Ads — daily account, campaign, ad group, keyword, search term, conversion and geo performance, plus call-level detail",
+  "api_connector": "connectors/google-ads/",
+  "data_location": "data/google-ads/ads.db",
+  "objects": {
+    "ads_customer_daily": { "description": "Account totals per day", "sync_script": "connectors/google-ads/sync.js" },
+    "ads_campaign_daily": { "description": "Campaign performance per day, incl. phone calls and impression share", "sync_script": "connectors/google-ads/sync.js" },
+    "ads_ad_group_daily": { "description": "Ad group performance per day", "sync_script": "connectors/google-ads/sync.js" },
+    "ads_keyword_daily": { "description": "Keyword performance per day", "sync_script": "connectors/google-ads/sync.js" },
+    "ads_search_term_daily": { "description": "Search terms per day", "sync_script": "connectors/google-ads/sync.js" },
+    "ads_conversion_daily": { "description": "Conversions by campaign and conversion action per day", "sync_script": "connectors/google-ads/sync.js" },
+    "ads_geo_daily": { "description": "Performance by city per day", "sync_script": "connectors/google-ads/sync.js" },
+    "ads_calls": { "description": "One row per call through a Google forwarding number", "sync_script": "connectors/google-ads/sync.js" }
+  },
+  "common_queries": {
+    "calls_by_campaign_last_30_days": {
+      "description": "Calls from ads and call conversions per campaign, last 30 days",
+      "sql": "SELECT c.campaign_name, SUM(c.phone_calls) AS calls_from_ads, SUM(c.cost) AS cost, SUM(c.conversions) AS conversions FROM ads_campaign_daily c WHERE c.date >= date('now','-30 days') GROUP BY c.campaign_name ORDER BY calls_from_ads DESC"
+    },
+    "call_conversions_by_type": {
+      "description": "Call conversions split by how the call happened",
+      "sql": "SELECT a.type, a.name, SUM(d.conversions) AS conversions FROM ads_conversion_daily d JOIN ads_conversion_actions a ON a.customer_id = d.customer_id AND a.conversion_action = d.conversion_action WHERE a.type IN ('AD_CALL','WEBSITE_CALL','CLICK_TO_CALL') GROUP BY a.type, a.name"
+    }
+  },
+  "api_integration": {
+    "method": "Google Ads API (REST, googleAds:searchStream)",
+    "authentication": "Google OAuth 2.0 (Desktop client) + developer token",
+    "env_vars": [
+      "GOOGLE_ADS_DEVELOPER_TOKEN",
+      "GOOGLE_ADS_CUSTOMER_IDS",
+      "GOOGLE_ADS_LOGIN_CUSTOMER_ID",
+      "GOOGLE_ADS_API_VERSION",
+      "GOOGLE_ADS_FULL_DAYS",
+      "GOOGLE_OAUTH_CLIENT_FILE"
+    ],
+    "setup": "See connectors/google-ads/README.md"
+  }
+}
