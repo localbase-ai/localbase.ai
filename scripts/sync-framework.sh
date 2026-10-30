@@ -161,45 +161,73 @@ for OLD_DIR in electron-app web-app tools/connectors; do
   fi
 done
 
-# Ensure framework's deps are installed in the instance.
-# Instance package.json is its own — we don't overwrite it — but any
-# framework dep (esp. test-suite deps like light-my-request) the instance
-# doesn't already declare needs to be added.
+# Keep the instance's package.json in step with the framework's.
+# Instance package.json is its own: its extra packages are left alone. But
+# every framework package is added if missing and raised to the framework's
+# version when the instance asks for an older one, and the framework's
+# security pins (overrides) are copied in, framework value winning. Without
+# this, instances kept whatever versions they were created with and never
+# picked up the framework's dependency fixes. The refresh step below then
+# reinstalls, because package.json is newer than node_modules.
 echo ""
-echo "📦 Ensuring framework deps are installed..."
+echo "📦 Aligning framework dependencies..."
 for PKG_DIR in "." "app"; do
   FRAMEWORK_PKG="$FRAMEWORK_DIR/$PKG_DIR/package.json"
-  INSTANCE_PKG_DIR="$INSTANCE_DIR/$PKG_DIR"
-  [ -f "$FRAMEWORK_PKG" ] && [ -f "$INSTANCE_PKG_DIR/package.json" ] || continue
-
-  missing_prod=$(node -e "
-    try {
-      const fw = require('$FRAMEWORK_PKG');
-      const ins = require('$INSTANCE_PKG_DIR/package.json');
-      const have = Object.assign({}, ins.dependencies||{}, ins.devDependencies||{});
-      console.log(Object.keys(fw.dependencies||{}).filter(d => !have[d]).join(' '));
-    } catch (e) { console.log(''); }
-  ")
-  missing_dev=$(node -e "
-    try {
-      const fw = require('$FRAMEWORK_PKG');
-      const ins = require('$INSTANCE_PKG_DIR/package.json');
-      const have = Object.assign({}, ins.dependencies||{}, ins.devDependencies||{});
-      console.log(Object.keys(fw.devDependencies||{}).filter(d => !have[d]).join(' '));
-    } catch (e) { console.log(''); }
-  ")
-
-  if [ -n "$missing_prod" ]; then
-    echo "   📥 Adding $PKG_DIR deps: $missing_prod"
-    (cd "$INSTANCE_PKG_DIR" && npm install --save --no-audit --no-fund $missing_prod)
-  fi
-  if [ -n "$missing_dev" ]; then
-    echo "   📥 Adding $PKG_DIR devDeps: $missing_dev"
-    (cd "$INSTANCE_PKG_DIR" && npm install --save-dev --no-audit --no-fund $missing_dev)
-  fi
-  if [ -z "$missing_prod" ] && [ -z "$missing_dev" ]; then
-    echo "   ✓ $PKG_DIR has all framework deps"
-  fi
+  INSTANCE_PKG="$INSTANCE_DIR/$PKG_DIR/package.json"
+  [ -f "$FRAMEWORK_PKG" ] && [ -f "$INSTANCE_PKG" ] || continue
+  FRAMEWORK_PKG="$FRAMEWORK_PKG" INSTANCE_PKG="$INSTANCE_PKG" PKG_DIR="$PKG_DIR" node -e '
+    const fs = require("fs");
+    const fw = JSON.parse(fs.readFileSync(process.env.FRAMEWORK_PKG, "utf8"));
+    const raw = fs.readFileSync(process.env.INSTANCE_PKG, "utf8");
+    const ins = JSON.parse(raw);
+    // Lowest version a "^1.2.3" / "~1.2.3" / "1.2.3" range allows; null for
+    // anything else (tags, URLs, git), which is left untouched.
+    const floor = (spec) => {
+      const m = /^[\^~]?(\d+)\.(\d+)\.(\d+)$/.exec(String(spec).trim());
+      return m ? m.slice(1).map(Number) : null;
+    };
+    const older = (a, b) => { for (let i = 0; i < 3; i++) if (a[i] !== b[i]) return a[i] < b[i]; return false; };
+    const changes = [];
+    for (const section of ["dependencies", "devDependencies"]) {
+      for (const [name, spec] of Object.entries(fw[section] || {})) {
+        const current = (ins.dependencies || {})[name] ?? (ins.devDependencies || {})[name];
+        const where = (ins.dependencies || {})[name] !== undefined ? "dependencies"
+          : (ins.devDependencies || {})[name] !== undefined ? "devDependencies" : section;
+        if (current === undefined) {
+          (ins[where] ||= {})[name] = spec; changes.push(`+${name}@${spec}`);
+        } else {
+          const have = floor(current), want = floor(spec);
+          if (have && want && older(have, want)) { ins[where][name] = spec; changes.push(`${name} ${current} -> ${spec}`); }
+        }
+      }
+    }
+    // Pins only ever raise a version: an instance pinned newer keeps its own.
+    // npm refuses an override for a package the instance depends on directly,
+    // so for those the dependency itself is raised instead.
+    for (const [name, spec] of Object.entries(fw.overrides || {})) {
+      const directIn = ["dependencies", "devDependencies"].find((sec) => (ins[sec] || {})[name] !== undefined);
+      if (directIn) {
+        const have = floor(ins[directIn][name]), want = floor(spec);
+        if (have && want && older(have, want)) {
+          const range = /^[\^~]/.test(spec) ? spec : `^${spec}`;
+          changes.push(`${name} ${ins[directIn][name]} -> ${range}`);
+          ins[directIn][name] = range;
+        }
+        continue;
+      }
+      const current = (ins.overrides || {})[name];
+      const have = current === undefined ? null : floor(current), want = floor(spec);
+      if (current === undefined || (have && want && older(have, want))) {
+        (ins.overrides ||= {})[name] = spec; changes.push(`override ${name}@${spec}`);
+      }
+    }
+    if (changes.length) {
+      fs.writeFileSync(process.env.INSTANCE_PKG, JSON.stringify(ins, null, 2) + "\n");
+      console.log(`   📥 ${process.env.PKG_DIR}: ${changes.join(", ")}`);
+    } else {
+      console.log(`   ✓ ${process.env.PKG_DIR} matches the framework`);
+    }
+  '
 done
 
 # Refresh installs if instance package.json is newer than node_modules
