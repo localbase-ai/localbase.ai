@@ -68,6 +68,19 @@ rsync -av \
   --exclude '.DS_Store' \
   $FRAMEWORK_DIR/.claude/commands/ $INSTANCE_DIR/.claude/commands/
 
+# Push guard: refuses pushes to non-private GitHub repos, non-fast-forwards
+# and unrelated history (scripts/hooks/pre-push). Never replaces a hook that's
+# already there.
+HOOK_PATH="$(git -C "$INSTANCE_DIR" rev-parse --git-path hooks 2>/dev/null)/pre-push"
+if [ -d "$INSTANCE_DIR/.git" ] && [ -f "$FRAMEWORK_DIR/scripts/hooks/pre-push" ]; then
+  case "$HOOK_PATH" in /*) ;; *) HOOK_PATH="$INSTANCE_DIR/$HOOK_PATH" ;; esac
+  if [ ! -e "$HOOK_PATH" ]; then
+    mkdir -p "$(dirname "$HOOK_PATH")"
+    cp "$FRAMEWORK_DIR/scripts/hooks/pre-push" "$HOOK_PATH" && chmod +x "$HOOK_PATH"
+    echo "🔒 Installed the pre-push guard"
+  fi
+fi
+
 # Sync connector base classes (NOT business connectors)
 echo "🔌 Syncing connector base classes..."
 cp $FRAMEWORK_DIR/connectors/MCPAdapter.js $INSTANCE_DIR/connectors/ 2>/dev/null || true
@@ -113,9 +126,29 @@ if [ -f "$MANIFEST" ]; then
   done < <(comm -23 "$MANIFEST" "$NEW_MANIFEST")
 fi
 
+# A framework connector's test (test/<connector>.test.js) only belongs in an
+# instance that has that connector, unmodified: connectors are installed per
+# instance and aren't synced, and an instance's own connector of the same name
+# is a different implementation the framework test would fail against.
+CONNECTOR_TEST_EXCLUDES=()
+for CONNECTOR in "$FRAMEWORK_DIR"/connectors/*/; do
+  NAME=$(basename "$CONNECTOR")
+  [ -f "$FRAMEWORK_DIR/test/$NAME.test.js" ] || continue
+  if [ -d "$INSTANCE_DIR/connectors/$NAME" ] && diff -rq "$CONNECTOR" "$INSTANCE_DIR/connectors/$NAME" > /dev/null 2>&1; then
+    continue
+  fi
+  CONNECTOR_TEST_EXCLUDES+=(--exclude "$NAME.test.js")
+  # Remove a copy an earlier sync left behind, but never an instance's own test.
+  if [ -f "$INSTANCE_DIR/test/$NAME.test.js" ] && cmp -s "$FRAMEWORK_DIR/test/$NAME.test.js" "$INSTANCE_DIR/test/$NAME.test.js"; then
+    echo "   🧹 Removing test/$NAME.test.js (connector not installed from the framework)"
+    /bin/rm "$INSTANCE_DIR/test/$NAME.test.js"
+  fi
+done
+
 rsync -av \
   --exclude '.DS_Store' \
   --exclude '.framework-tests' \
+  "${CONNECTOR_TEST_EXCLUDES[@]}" \
   $FRAMEWORK_DIR/test/ $INSTANCE_DIR/test/
 
 mv "$NEW_MANIFEST" "$MANIFEST"

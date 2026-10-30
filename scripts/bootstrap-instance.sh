@@ -91,6 +91,19 @@ rsync -av \
   "$FRAMEWORK_DIR/scripts/" "$INSTANCE_DIR/scripts/"
 echo "✓ Synced: scripts/"
 
+# Push guard: refuses pushes to non-private GitHub repos, non-fast-forwards
+# and unrelated history (scripts/hooks/pre-push). Never replaces a hook that's
+# already there.
+HOOK_PATH="$(git -C "$INSTANCE_DIR" rev-parse --git-path hooks 2>/dev/null)/pre-push"
+if [ -d "$INSTANCE_DIR/.git" ] && [ -f "$FRAMEWORK_DIR/scripts/hooks/pre-push" ]; then
+  case "$HOOK_PATH" in /*) ;; *) HOOK_PATH="$INSTANCE_DIR/$HOOK_PATH" ;; esac
+  if [ ! -e "$HOOK_PATH" ]; then
+    mkdir -p "$(dirname "$HOOK_PATH")"
+    cp "$FRAMEWORK_DIR/scripts/hooks/pre-push" "$HOOK_PATH" && chmod +x "$HOOK_PATH"
+    echo "🔒 Installed the pre-push guard"
+  fi
+fi
+
 # Copy connector base classes
 mkdir -p "$INSTANCE_DIR/connectors"
 cp "$FRAMEWORK_DIR/connectors/MCPAdapter.js" "$INSTANCE_DIR/connectors/" 2>/dev/null || true
@@ -100,9 +113,15 @@ cp "$FRAMEWORK_DIR/connectors/google-oauth.js" "$INSTANCE_DIR/connectors/" 2>/de
 cp "$FRAMEWORK_DIR/connectors/google-authorize.js" "$INSTANCE_DIR/connectors/" 2>/dev/null || true
 echo "✓ Synced: connectors base classes"
 
-# Copy framework tests
+# Copy framework tests. Connector tests stay behind: a new instance has no
+# connectors yet, and sync-framework.sh adds a connector's test once it's installed.
+CONNECTOR_TEST_EXCLUDES=()
+for CONNECTOR in "$FRAMEWORK_DIR"/connectors/*/; do
+  CONNECTOR_TEST_EXCLUDES+=(--exclude "$(basename "$CONNECTOR").test.js")
+done
 rsync -av \
   --exclude '.DS_Store' \
+  "${CONNECTOR_TEST_EXCLUDES[@]}" \
   "$FRAMEWORK_DIR/test/" "$INSTANCE_DIR/test/"
 echo "✓ Synced: test/"
 

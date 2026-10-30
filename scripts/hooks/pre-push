@@ -1,0 +1,48 @@
+#!/bin/bash
+# Push guard for LocalBase instance repos. Installed into .git/hooks/pre-push by
+# bootstrap-instance.sh and sync-framework.sh when the repo has no pre-push hook.
+#
+# Refuses a push when:
+#   - the remote is on GitHub and the repo isn't private (unknown counts as no)
+#   - an existing remote branch would be moved to something that isn't a plain
+#     fast-forward of it (unrelated history, rewrites, force pushes)
+#   - a new remote branch shares no history with what the remote already has
+# Deleting a remote branch is allowed.
+
+remote="$1"
+url="$2"
+zero=0000000000000000000000000000000000000000
+
+case "$url" in
+  *github.com*)
+    slug=$(printf '%s' "$url" | sed -E 's#^.*github\.com[:/]##; s#\.git$##')
+    vis=$(gh repo view "$slug" --json visibility -q .visibility 2>/dev/null)
+    if [ "$vis" != "PRIVATE" ]; then
+      echo "pre-push: $slug is ${vis:-of unknown visibility}. Instance repos only push to private remotes." >&2
+      exit 1
+    fi ;;
+esac
+
+existing=$(git for-each-ref --format='%(objectname)' "refs/remotes/$remote/")
+fail=0
+while read -r local_ref local_sha remote_ref remote_sha; do
+  [ "$local_sha" = "$zero" ] && continue
+  if [ "$remote_sha" != "$zero" ]; then
+    if ! git merge-base --is-ancestor "$remote_sha" "$local_sha" 2>/dev/null; then
+      echo "pre-push: $local_ref is not a fast-forward of $remote_ref on $remote. Refusing." >&2
+      fail=1
+    fi
+  elif [ -n "$existing" ]; then
+    shared=0
+    for sha in $existing; do
+      git merge-base "$sha" "$local_sha" >/dev/null 2>&1 && { shared=1; break; }
+    done
+    if [ "$shared" -eq 0 ]; then
+      echo "pre-push: $local_ref shares no history with anything on $remote. Refusing." >&2
+      fail=1
+    fi
+  fi
+done
+
+[ "$fail" -eq 0 ] || { echo "pre-push: push blocked." >&2; exit 1; }
+exit 0
