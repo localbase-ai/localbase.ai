@@ -24,7 +24,7 @@
   "devDependencies": {
     "@tailwindcss/postcss": "^4.3.3",
     "@vitejs/plugin-react": "^6.1.2",
-    "baseline-browser-mapping": "^2.11.34",
+    "baseline-browser-mapping": "^2.11.35",
     "postcss": "^8.5.32",
     "tailwindcss": "^4.3.3",
     "tailwindcss-animate": "^1.0.7",
