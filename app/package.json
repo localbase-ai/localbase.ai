@@ -22,7 +22,7 @@
     "tailwind-merge": "^2.2.1"
   },
   "devDependencies": {
-    "@tailwindcss/postcss": "^4.3.3",
+    "@tailwindcss/postcss": "^4.3.5",
     "@vitejs/plugin-react": "^6.1.2",
     "baseline-browser-mapping": "^2.11.34",
     "postcss": "^8.5.32",
